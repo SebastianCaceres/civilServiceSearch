@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 1.2rem auto; max-width: 980px; padding: 0 1rem; }
+        .top { margin-bottom: 1rem; }
+        form { display: flex; gap: 0.5rem; }
+        input[type="text"] { flex: 1; padding: 0.65rem; font-size: 1rem; }
+        button { padding: 0.65rem 1rem; cursor: pointer; }
+        button:disabled { cursor: not-allowed; opacity: 0.8; }
+        .meta { color: #555; margin: 0.7rem 0 1rem; }
+        .result { padding: 0.85rem 0; border-bottom: 1px solid #ddd; }
+        .title-link { text-decoration: none; color: #1a0dab; font-size: 1.1rem; }
+        .title-link:hover { text-decoration: underline; }
+        .subtitle { color: #1565c0; margin-top: 0.2rem; }
+        .agency { color: #333; margin-top: 0.15rem; }
+        .details { color: #666; margin-top: 0.2rem; font-size: 0.9rem; }
+        mark { background: #fff59d; }
+        .badge {
+            display: inline-block;
+            padding: 0.35em 0.5em;
+            font-size: 78%;
+            font-weight: 700;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 0.25rem;
+            margin-top: 0.35rem;
+        }
+        .badge-success {
+            color: #fff;
+            background-color: #28a745;
+        }
+        .badge-primary {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .badge-warning {
+            color: #212529;
+            background-color: #ffc107;
+        }
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(0,0,0,0.15);
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="top">
+    <form method="get" action="/results" id="search-form">
+        <input type="text" name="q" th:value="${q}" autofocus>
+        <button type="submit" id="search-btn">Search</button>
+    </form>
+</div>
+<script>
+    document.getElementById('search-form').addEventListener('submit', function() {
+        var btn = document.getElementById('search-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Searching...';
+    });
+</script>
+
+<div class="meta" th:if="${q != null and !q.isBlank()}">
+    About <strong th:text="${resultCount}">0</strong> results in <strong th:text="${searchMs}">0</strong> ms
+</div>
+
+<div th:if="${q == null or q.isBlank()}">Enter a search query to see results.</div>
+<div th:if="${q != null and !q.isBlank() and #lists.isEmpty(results)}">No results found.</div>
+
+<div th:each="candidate : ${results}" class="result">
+    <a class="title-link" th:href="@{/record/{id}(id=${candidate.id}, q=${q})}" th:utext="${candidate.fullNameHtml}"></a>
+    <div class="subtitle" th:utext="${candidate.titleHtml}"></div>
+    <div class="agency" th:utext="${candidate.agencyHtml}"></div>
+    <div class="details">
+        Exam #<span th:text="${candidate.examNo}"></span>
+        | List #<span th:text="${candidate.listNo}"></span>
+        | Status <span th:text="${candidate.status}"></span>
+        | Score <span th:text="${candidate.score}"></span>
+    </div>
+    <div>
+        <!-- Case 2: Certified (but not appointed) -->
+        <span th:if="${candidate.isCertified}" class="badge badge-primary">
+            Reachable by [[${candidate.certifiedAgency}]] on [[${candidate.formattedCertifiedDate}]]
+        </span>
+
+        <!-- Case 3: Reached (but not selected/certified) -->
+        <span th:if="${candidate.isReached}" class="badge badge-warning">
+            Reached by [[${candidate.latestReachAgency}]] on [[${candidate.formattedLatestReachDate}]]
+        </span>
+    </div>
+</div>
+</body>
+</html>

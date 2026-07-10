@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Details</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 1.2rem auto; max-width: 980px; padding: 0 1rem; }
+        a { color: #1a0dab; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        h1 { margin: 0.8rem 0 1rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: 0.55rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+        th { width: 240px; color: #333; background: #fafafa; }
+        .card { border: 1px solid #ccc; border-radius: 4px; padding: 1.2rem; margin-top: 1.5rem; background: #fbfbfb; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .card-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.8rem; color: #111; border-bottom: 1px solid #eee; padding-bottom: 0.4rem; }
+        .card p { margin: 0.45rem 0; line-height: 1.4; }
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #ccc;
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<p>
+    <a th:href="@{/results(q=${q})}">Back to results</a>
+</p>
+
+<h1 th:text="${entry.firstName + ' ' + (entry.mi == null ? '' : entry.mi + ' ') + entry.lastName}">Record</h1>
+
+<table>
+    <tr><th>ID</th><td th:text="${entry.id}"></td></tr>
+    <tr><th>Exam No</th><td th:text="${entry.examNo}"></td></tr>
+    <tr><th>List No</th><td th:text="${entry.listNo}"></td></tr>
+    <tr><th>First Name</th><td th:text="${entry.firstName}"></td></tr>
+    <tr><th>MI</th><td th:text="${entry.mi}"></td></tr>
+    <tr><th>Last Name</th><td th:text="${entry.lastName}"></td></tr>
+    <tr><th>Adj. FA</th><td th:text="${entry.adjFa}"></td></tr>
+    <tr><th>List Title Code</th><td th:text="${entry.listTitleCode}"></td></tr>
+    <tr><th>List Title Desc</th><td th:text="${entry.listTitleDesc}"></td></tr>
+    <tr><th>Group No</th><td th:text="${entry.groupNo}"></td></tr>
+    <tr><th>List Agency Code</th><td th:text="${entry.listAgencyCode}"></td></tr>
+    <tr><th>List Agency Desc</th><td th:text="${entry.listAgencyDesc}"></td></tr>
+    <tr><th>List Div Code</th><td th:text="${entry.listDivCode}"></td></tr>
+    <tr><th>Published Date</th><td th:text="${entry.publishedDate}"></td></tr>
+    <tr><th>Established Date</th><td th:text="${entry.establishedDate}"></td></tr>
+    <tr><th>Anniversary Date</th><td th:text="${entry.anniversaryDate}"></td></tr>
+    <tr><th>Extension Date</th><td th:text="${entry.extensionDate}"></td></tr>
+    <tr><th>Veteran Credit</th><td th:text="${entry.veteranCredit}"></td></tr>
+    <tr><th>Parent Lgy Credit</th><td th:text="${entry.parentLgyCredit}"></td></tr>
+    <tr><th>Sibling Lgy Credit</th><td th:text="${entry.siblingLgyCredit}"></td></tr>
+    <tr><th>Residency Credit</th><td th:text="${entry.residencyCredit}"></td></tr>
+    <tr id="status-row"><th>Status</th><td><span id="status-value" style="color: #666; font-style: italic;"><span class="spinner"></span>Verifying...</span></td></tr>
+</table>
+
+<!-- HTMX Trigger: loads the lazy fragments on DOM content load -->
+<div th:hx-get="@{/record/{id}/details(id=${entry.id})}" hx-trigger="load" hx-swap="none"></div>
+
+<div class="card" id="payroll-info" style="display: none;">
+    <!-- Populated via HTMX OOB swap -->
+</div>
+
+<div class="card" id="certificate-info">
+    <div class="card-title">Civil Service Reachable & Estimation</div>
+    <div id="reach-details-content">
+        <p style="color: #666; font-style: italic;">
+            <span class="spinner"></span>
+            Querying NYC Open Data certifications and verifying appointment status...
+        </p>
+    </div>
+</div>
+
+<div class="card" id="caveats-info" style="font-size: 0.85rem; color: #555; background: #fdfdfd; border-color: #eee; margin-bottom: 2rem; box-shadow: none;">
+    <div class="card-title" style="font-size: 1.05rem; color: #666; border-bottom: 1px solid #fafafa; padding-bottom: 0.3rem;">Status & Estimation Caveats</div>
+    <p><strong>Reachable:</strong> Indicates that the candidate’s rank was certified to an agency on a list. This means they were eligible to be considered for hiring, but does not guarantee they were selected.</p>
+    <p><strong>Appointed Status:</strong> Verified on-demand against the NYC Civil List payroll dataset. A candidate is flagged as <em>Appointed</em> if they appear on the city payroll for a calendar year after their list certification year. Payroll data updates annually and may experience lag.</p>
+    <p><strong>Estimated Days to Reach:</strong> Timelines are calculated using a linear regression projection of historical agency request rates for this list. Actual reach times vary based on agency budgets, vacancies, and hiring freezes.</p>
+</div>
+
+<!-- ========================================== -->
+<!-- Thymeleaf Fragments for HTMX OOB Swapping -->
+<!-- ========================================== -->
+<div th:fragment="details-fragments" th:if="${estimation != null}" style="display: none;">
+    <!-- 1. Status Row OOB Swap -->
+    <span id="status-value" hx-swap-oob="true"
+          th:text="${estimation.isAppointed ? 'Appointed' : 'Not Appointed'}"
+          th:style="${estimation.isAppointed ? 'color: green; font-weight: bold;' : 'color: black; font-weight: normal;'}">
+    </span>
+
+    <!-- 2. Payroll Info Card OOB Swap -->
+    <div id="payroll-info" hx-swap-oob="true" class="card"
+         th:style="${estimation.isAppointed ? 'display: block;' : 'display: none;'}">
+        <div th:if="${estimation.isAppointed}">
+            <div class="card-title" style="color: #28a745;">Appointed Payroll Verification</div>
+            <p><strong>Appointment Status:</strong> <span style="color: green; font-weight: bold;">Appointed</span></p>
+            <p><strong>Agency Name:</strong> <span th:text="${estimation.payrollRecord.agencyName}"></span></p>
+            <p><strong>Agency Code (Dpt):</strong> <span th:text="${estimation.payrollRecord.dpt}"></span></p>
+            <p><strong>Title Code (Ttl):</strong> <span th:text="${estimation.payrollRecord.ttl}"></span></p>
+            <p><strong>Current Salary Rate:</strong> <span th:text="${estimation.payrollRecord.salRate}"></span></p>
+            <p><strong>Calendar Year:</strong> <span th:text="${estimation.payrollRecord.calendarYear}"></span></p>
+            <p><strong>Pay Class:</strong> <span th:text="${estimation.payrollRecord.pc}"></span></p>
+        </div>
+    </div>
+
+    <!-- 3. Reachable Certificate & Estimation Card OOB Swap -->
+    <div id="certificate-info" hx-swap-oob="true" class="card">
+        <div class="card-title">Civil Service Reachable & Estimation</div>
+        
+        <!-- If candidate has an exact certification record -->
+        <div th:if="${estimation.hasCertificate}">
+            <p><strong>Reachable Status:</strong> <span style="color: green; font-weight: bold;">Reachable</span></p>
+            <p><strong>Agency:</strong> <span th:text="${estimation.certificate.listAgencyDesc != null ? estimation.certificate.listAgencyDesc : 'N/A'}"></span> (<span th:text="${estimation.certificate.listAgencyCode != null ? estimation.certificate.listAgencyCode : 'N/A'}"></span>)</p>
+            <p><strong>Title:</strong> <span th:text="${estimation.certificate.listTitleDesc != null ? estimation.certificate.listTitleDesc : 'N/A'}"></span></p>
+            <p><strong>Reachable Date:</strong> <span th:text="${estimation.certificate.certDate != null ? #temporals.format(estimation.certificate.certDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
+            <p><strong>Request Date:</strong> <span th:text="${estimation.certificate.requestDate != null ? #temporals.format(estimation.certificate.requestDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
+            <p><strong>Expiration Date:</strong> <span th:text="${estimation.certificate.certExpirationDate != null ? #temporals.format(estimation.certificate.certExpirationDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
+            <p><strong>Cert Issue No:</strong> <span th:text="${estimation.certificate.certIssueNo != null ? estimation.certificate.certIssueNo : 'N/A'}"></span></p>
+            <p><strong>Cert Seq No:</strong> <span th:text="${estimation.certificate.certSeqNo != null ? estimation.certificate.certSeqNo : 'N/A'}"></span></p>
+            <p><strong>Number Certified:</strong> <span th:text="${estimation.certificate.noCertified != null ? estimation.certificate.noCertified : 'N/A'}"></span></p>
+            <p><strong>Number Requested:</strong> <span th:text="${estimation.certificate.noRequested != null ? estimation.certificate.noRequested : 'N/A'}"></span></p>
+            <p><strong>Salary:</strong> <span th:text="${estimation.certificate.salary != null ? '$' + estimation.certificate.salary : 'N/A'}"></span></p>
+            <p><strong>Provisional Replacement:</strong> <span th:text="${estimation.certificate.provisionalReplacement != null ? estimation.certificate.provisionalReplacement : 'N/A'}"></span></p>
+            <p><strong>Selection Description:</strong> <span th:text="${estimation.certificate.selCertDescription != null ? estimation.certificate.selCertDescription : 'N/A'}"></span></p>
+        </div>
+
+        <!-- If candidate does not have a certification record, show estimation details -->
+        <div th:if="${!estimation.hasCertificate}">
+            <p><strong>Reachable Status:</strong> <span style="color: #666; font-weight: bold;">Not Reachable</span></p>
+            <p><strong>Estimated Max Reach Number:</strong> <span th:text="${estimation.maxReachNumber != null ? estimation.maxReachNumber : 'N/A'}"></span></p>
+            <p><strong>First Date Someone Requested:</strong> <span th:text="${estimation.firstRequestedDate != null ? #temporals.format(estimation.firstRequestedDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
+            <p><strong>Last Date Someone Requested:</strong> <span th:text="${estimation.lastRequestedDate != null ? #temporals.format(estimation.lastRequestedDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
+            <p><strong>Estimated Days to Reach:</strong> 
+                <span style="font-weight: bold;" 
+                      th:style="${estimation.estimatedDaysToReach != null && estimation.estimatedDaysToReach == 0 ? 'color: green; font-weight: bold;' : 'color: #d9534f; font-weight: bold;'}"
+                      th:text="${estimation.estimationStatus}"></span>
+            </p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
