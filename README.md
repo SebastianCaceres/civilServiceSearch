@@ -1,58 +1,50 @@
 # Civil Service Search Application
 
-A Spring Boot web application for searching NYC Civil Service Candidate lists and certifications, built using Spring Data JPA, Thymeleaf, Bootstrap, and Hibernate Search (Lucene).
+A Spring Boot web application for searching NYC Civil Service Candidate lists and certifications, built using Thymeleaf, Vanilla CSS, and Hibernate Search Standalone (Lucene).
+
+The application is fully self-contained, using a local directory index for searching without requiring any external relational database (like PostgreSQL or H2).
+
+---
 
 ## Configuration (.env)
-A `.env` file is located in the root directory to store critical/secret properties:
-* `SPRING_DATASOURCE_URL`: PostgreSQL JDBC connection URL.
-* `SPRING_DATASOURCE_USERNAME`: Database username.
-* `SPRING_DATASOURCE_PASSWORD`: Database password.
+A `.env` file is located in the root directory to store critical NYC Open Data API configuration:
 * `CIVILSERVICE_SYNC_APP_TOKEN`: NYC Open Data SODA3 API App Token.
 * `CIVILSERVICE_SYNC_SECRET_TOKEN`: NYC Open Data SODA3 API Secret Token.
 
-These are automatically injected into `application.properties` with fallback defaults for local execution outside Docker.
+These environment variables are automatically loaded by Spring Boot on startup.
 
 ---
 
-## Running with Docker Compose
+## Running Locally
 
-### 1. Build and Run Entire Application
-To build the Spring Boot application container and run it alongside PostgreSQL in the same Docker network:
-```bash
-docker compose up -d --build
-```
-This will:
-1. Spin up the PostgreSQL container and wait for its healthcheck to pass.
-2. Build the Spring Boot multi-stage Docker image and start the container on port `8080`.
-3. Auto-load configuration properties from the local `.env` file.
-
-### 2. Stop Containers
-To shut down the running containers:
-```bash
-docker compose down
-```
-
----
-
-## Running Locally (Outside Docker)
-
-### 1. Start the Database only
-If you prefer running the database in Docker but debugging/running the Java code locally:
-```bash
-docker compose up -d postgres
-```
-
-### 2. Start Spring Boot
+### 1. Start the Application
 Run the Spring Boot application locally:
 ```bash
+# Windows
+.\mvnw.cmd spring-boot:run
+
+# Unix/macOS
 ./mvnw spring-boot:run
 ```
+The application starts a web server on port `8083`. Open [http://localhost:8083](http://localhost:8083) in your browser.
 
-### 3. Run Tests
-Run the JUnit test suite (which runs completely isolated in-memory against a mock H2 instance):
+### 2. Run Tests
+Run the JUnit integration and unit tests:
 ```bash
+# Windows
+.\mvnw.cmd test
+
+# Unix/macOS
 ./mvnw test
 ```
+
+---
+
+## Architecture & Synchronization
+
+* **Lucene Indexing:** The application uses Standalone Hibernate Search with a local file-based Lucene directory to index and query NYC civil service candidate lists.
+* **Automatic Startup Sync:** On startup, the application checks if the local index has fewer than 5,000 records. If it does, a full synchronization is triggered, downloading the entire dataset (active and terminated lists) from NYC Open Data, bypassing caching.
+* **HTMX Out-of-Band (OOB) Swap:** Search queries are processed dynamically using HTMX. Instead of reloading or replacing the entire page, search results are swapped out-of-band into the results container (`#search-results`), preserving focus and cursor position in the search query input box for a smooth, single-page application experience.
 
 ---
 

@@ -39,3 +39,4 @@ civilService.db.mv.db
 /.env
 /lucene-index/CivilServiceListRecord/
 /.pgdata/
+/lucene-index/
