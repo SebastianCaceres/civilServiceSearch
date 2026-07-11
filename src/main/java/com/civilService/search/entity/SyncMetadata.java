@@ -1,19 +1,28 @@
 package com.civilService.search.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.DocumentId;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.Indexed;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.SearchEntity;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.GenericField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.ProjectionConstructor;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.IdProjection;
+import org.hibernate.search.engine.backend.types.Projectable;
 
-@Entity
-@Table(name = "sync_metadata")
+@SearchEntity
+@Indexed
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class SyncMetadata {
-    @Id
+    @DocumentId
     private String datasetId;
+    @GenericField(projectable = Projectable.YES)
     private Long lastSyncedRowsUpdatedAt;
+
+    @ProjectionConstructor
+    public SyncMetadata(@IdProjection String datasetId, Long lastSyncedRowsUpdatedAt) {
+        this.datasetId = datasetId;
+        this.lastSyncedRowsUpdatedAt = lastSyncedRowsUpdatedAt;
+    }
 }

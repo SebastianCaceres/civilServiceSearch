@@ -1,57 +1,78 @@
 package com.civilService.search;
 
-import com.civilService.search.repository.CivilServiceListRecordRepository;
+import com.civilService.search.entity.CivilServiceListRecord;
 import com.civilService.search.service.CivilServiceListSyncService;
+import com.civilService.search.service.SearchService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.hibernate.search.mapper.pojo.standalone.mapping.SearchMapping;
+import org.hibernate.search.mapper.pojo.standalone.session.SearchSession;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.springframework.test.annotation.DirtiesContext;
+
 @SpringBootTest
 @org.springframework.test.context.TestPropertySource(properties = {
-		"spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1",
-		"spring.datasource.driver-class-name=org.h2.Driver",
-		"civilservice.sync.limit=2000",
-		"civilservice.sync.list.limit=2000",
-		"civilservice.sync.app-token=***REMOVED***",
-		"civilservice.sync.secret-token=***REMOVED***"
+		"civilservice.sync.limit=20000",
+		"civilservice.sync.list.limit=20000",
+		"civilservice.sync.app-token=${CIVILSERVICE_SYNC_APP_TOKEN:}",
+		"civilservice.sync.secret-token=${CIVILSERVICE_SYNC_SECRET_TOKEN:}",
+		"hibernate.search.backend.directory.root=./target/lucene-index-search"
 })
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class SearchApplicationTests {
 
 	@Autowired
 	private CivilServiceListSyncService listSyncService;
 
 	@Autowired
-	private CivilServiceListRecordRepository listRepository;
+	private SearchMapping searchMapping;
 
 	@Autowired
-	private com.civilService.search.service.LuceneIndexService luceneIndexService;
+	private SearchService searchService;
 
 	@Test
 	void contextLoads() {
 		assertThat(listSyncService).isNotNull();
-		assertThat(listRepository).isNotNull();
+		assertThat(searchMapping).isNotNull();
 	}
 
 	@Test
 	void testSyncListRecords() {
-		// Clear repository to ensure clean state
-		listRepository.deleteAll();
+		// Clear Lucene index to ensure clean state
+		try (SearchSession session = searchMapping.createSession()) {
+			session.workspace(CivilServiceListRecord.class).purge();
+		}
 
 		// Run sync
 		listSyncService.syncAllLists();
 
 		// Assert that records were successfully fetched and saved
-		long count = listRepository.count();
+		long count = 0;
+		List<CivilServiceListRecord> allRecords;
+		try (SearchSession session = searchMapping.createSession()) {
+			count = session.search(CivilServiceListRecord.class)
+					.where(f -> f.matchAll())
+					.fetchTotalHitCount();
+
+			allRecords = session.search(CivilServiceListRecord.class)
+					.select(CivilServiceListRecord.class)
+					.where(f -> f.matchAll())
+					.fetchAllHits();
+		}
+
 		System.out.println("Test successfully synchronized " + count + " civil service list records.");
 		assertThat(count).isGreaterThan(0);
 
 		// Assert that both active and terminated statuses are present
-		long activeCount = listRepository.findAll().stream()
+		long activeCount = allRecords.stream()
 				.filter(r -> "active".equals(r.getStatus()))
 				.count();
-		long terminatedCount = listRepository.findAll().stream()
+		long terminatedCount = allRecords.stream()
 				.filter(r -> "terminated".equals(r.getStatus()))
 				.count();
 
@@ -63,30 +84,33 @@ class SearchApplicationTests {
 	}
 
 	@Test
-	void testLuceneIndexAndSearch() {
+	void testLuceneSearchService() {
 		// Run lists sync if empty to guarantee records to index
-		if (listRepository.count() == 0) {
+		long count = 0;
+		try (SearchSession session = searchMapping.createSession()) {
+			count = session.search(CivilServiceListRecord.class)
+					.where(f -> f.matchAll())
+					.fetchTotalHitCount();
+		}
+		if (count == 0) {
 			listSyncService.syncAllLists();
 		}
 
-		// Run manual reindexing
-		luceneIndexService.reindexAll();
-
-		// Search list records for "OMAR"
-		java.util.List<com.civilService.search.entity.CivilServiceListRecord> omarResults = luceneIndexService.searchLists("OMAR", 10);
-		System.out.println("Lucene search for 'OMAR' returned: " + omarResults.size() + " matches.");
-		assertThat(omarResults).isNotEmpty();
-		for (com.civilService.search.entity.CivilServiceListRecord match : omarResults) {
-			System.out.println("Match: " + match.getFirstName() + " " + match.getLastName() + " - status: " + match.getStatus());
-			assertThat(match.getFirstName() + " " + match.getLastName()).containsIgnoringCase("OMAR");
+		// Search list records using SearchService
+		SearchService.SearchResponse omarResponse = searchService.searchEntries("OMAR");
+		System.out.println("SearchService for 'OMAR' returned: " + omarResponse.totalCount() + " matches.");
+		assertThat(omarResponse.results()).isNotEmpty();
+		for (SearchService.SearchHit match : omarResponse.results()) {
+			System.out.println("Match: " + match.fullNameHtml() + " - status: " + match.status());
+			assertThat(match.fullNameHtml()).containsIgnoringCase("OMAR");
 		}
 
 		// Search list records for "terminated"
-		java.util.List<com.civilService.search.entity.CivilServiceListRecord> terminatedResults = luceneIndexService.searchLists("terminated", 10);
-		System.out.println("Lucene search for 'terminated' returned: " + terminatedResults.size() + " matches.");
-		assertThat(terminatedResults).isNotEmpty();
-		for (com.civilService.search.entity.CivilServiceListRecord match : terminatedResults) {
-			assertThat(match.getStatus()).isEqualTo("terminated");
+		SearchService.SearchResponse terminatedResponse = searchService.searchEntries("terminated");
+		System.out.println("SearchService for 'terminated' returned: " + terminatedResponse.totalCount() + " matches.");
+		assertThat(terminatedResponse.results()).isNotEmpty();
+		for (SearchService.SearchHit match : terminatedResponse.results()) {
+			assertThat(match.status()).isEqualTo("terminated");
 		}
 	}
 }

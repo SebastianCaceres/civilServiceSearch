@@ -1,7 +1,6 @@
 package com.civilService.search.job;
 
 import com.civilService.search.service.CivilServiceListSyncService;
-import com.civilService.search.service.LuceneIndexService;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.JobExecutionContext;
@@ -18,11 +17,9 @@ import org.springframework.stereotype.Component;
 public class SyncRecordsJob extends QuartzJobBean {
 
     private final CivilServiceListSyncService listSyncService;
-    private final LuceneIndexService luceneIndexService;
 
-    public SyncRecordsJob(CivilServiceListSyncService listSyncService, LuceneIndexService luceneIndexService) {
+    public SyncRecordsJob(CivilServiceListSyncService listSyncService) {
         this.listSyncService = listSyncService;
-        this.luceneIndexService = luceneIndexService;
     }
 
     @Override
@@ -31,11 +28,9 @@ public class SyncRecordsJob extends QuartzJobBean {
         try {
             boolean synced = listSyncService.syncAllLists();
             if (synced) {
-                log.info("New list records synchronized in background. Triggering Lucene index rebuild...");
-                luceneIndexService.reindexAll();
-                log.info("Lucene index rebuilt successfully in background.");
+                log.info("New list records synchronized in background directly into Lucene.");
             } else {
-                log.info("No candidates list updates detected. Lucene index rebuild skipped.");
+                log.info("No candidates list updates detected.");
             }
         } catch (Exception e) {
             log.error("Failed to run periodic candidates lists synchronization background job", e);

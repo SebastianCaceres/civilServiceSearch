@@ -6,28 +6,36 @@ import java.util.List;
 import java.util.ArrayList;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
 
 import com.civilService.search.entity.CivilServiceListRecord;
 import com.civilService.search.entity.CivilServiceRecord;
-import com.civilService.search.repository.CivilServiceListRecordRepository;
+import org.hibernate.search.mapper.pojo.standalone.mapping.SearchMapping;
+import org.hibernate.search.mapper.pojo.standalone.session.SearchSession;
 import com.civilService.search.service.CivilServiceSyncService;
 import com.civilService.search.service.CivilServiceListSyncService;
 import com.civilService.search.service.SearchService;
 import com.civilService.search.service.SearchService.CertificationEstimation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class SearchServiceTests {
 
     @Test
+    @SuppressWarnings("unchecked")
     void highlightDoesNotCorruptMarkTagsForSingleLetterTerms() {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
+        SearchSession session = mock(SearchSession.class);
+        when(searchMapping.createSession()).thenReturn(session);
+
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, mock(CivilServiceListSyncService.class));
+        SearchService searchService = new SearchService(searchMapping, syncService, mock(CivilServiceListSyncService.class));
 
         CivilServiceListRecord entry = new CivilServiceListRecord();
         entry.setId(1L);
@@ -40,12 +48,19 @@ class SearchServiceTests {
         entry.setListNo(new BigDecimal("1413.000"));
         entry.setStatus("active");
 
-        when(repository.findAll()).thenReturn(List.of(entry));
+        var selectStep = mock(org.hibernate.search.engine.search.query.dsl.SearchQuerySelectStep.class);
+        var whereStep = mock(org.hibernate.search.engine.search.query.dsl.SearchQueryWhereStep.class);
+        var optionsStep = mock(org.hibernate.search.engine.search.query.dsl.SearchQueryOptionsStep.class);
+
+        when(session.search(any(Class.class))).thenReturn(selectStep);
+        when(selectStep.select(any(Class.class))).thenReturn(whereStep);
+        when(whereStep.where(any(java.util.function.Function.class))).thenReturn(optionsStep);
+        when(optionsStep.fetchAllHits()).thenReturn(List.of(entry));
 
         SearchService.SearchResponse response = searchService.searchEntries("PINAKIN R PATEL");
 
         assertThat(response.totalCount()).isEqualTo(1);
-        String fullNameHtml = response.results().getFirst().fullNameHtml();
+        String fullNameHtml = response.results().get(0).fullNameHtml();
         assertThat(fullNameHtml).contains("<mark>PINAKIN</mark>");
         assertThat(fullNameHtml).contains("<mark>R</mark>");
         assertThat(fullNameHtml).contains("<mark>PATEL</mark>");
@@ -55,9 +70,9 @@ class SearchServiceTests {
 
     @Test
     void getCertificationOrEstimationReturnsExactCertificationIfFound() {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, mock(CivilServiceListSyncService.class));
+        SearchService searchService = new SearchService(searchMapping, syncService, mock(CivilServiceListSyncService.class));
 
         CivilServiceListRecord candidate = new CivilServiceListRecord();
         candidate.setExamNo("8042");
@@ -80,9 +95,9 @@ class SearchServiceTests {
 
     @Test
     void getCertificationOrEstimationCalculatesLinearRegressionEstimations() {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, mock(CivilServiceListSyncService.class));
+        SearchService searchService = new SearchService(searchMapping, syncService, mock(CivilServiceListSyncService.class));
 
         CivilServiceListRecord candidate = new CivilServiceListRecord();
         candidate.setId(3L);
@@ -128,14 +143,14 @@ class SearchServiceTests {
 
     @Test
     void getCertificationOrEstimationFiltersOutSkipsCorrectly() {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, mock(CivilServiceListSyncService.class));
+        SearchService searchService = new SearchService(searchMapping, syncService, mock(CivilServiceListSyncService.class));
 
         CivilServiceListRecord candidate = new CivilServiceListRecord();
         candidate.setId(4L);
         candidate.setExamNo("5555");
-        candidate.setListNo(new BigDecimal("100.00"));
+        candidate.setListNo(new BigDecimal("10.00"));
 
         LocalDateTime baseDate = LocalDateTime.now().minusDays(10);
 
@@ -176,9 +191,9 @@ class SearchServiceTests {
 
     @Test
     void getCertificationOrEstimationWithTestData5054() throws Exception {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, mock(CivilServiceListSyncService.class));
+        SearchService searchService = new SearchService(searchMapping, syncService, mock(CivilServiceListSyncService.class));
 
         CivilServiceListRecord candidate = new CivilServiceListRecord();
         candidate.setId(999L);
@@ -230,11 +245,15 @@ class SearchServiceTests {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testSearchIsLightweightAndDetailsAreOnDemand() {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
+        SearchSession session = mock(SearchSession.class);
+        when(searchMapping.createSession()).thenReturn(session);
+
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
         CivilServiceListSyncService listSyncService = mock(CivilServiceListSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, listSyncService);
+        SearchService searchService = new SearchService(searchMapping, syncService, listSyncService);
 
         // Set up mock database record
         CivilServiceListRecord candidate = new CivilServiceListRecord();
@@ -244,8 +263,15 @@ class SearchServiceTests {
         candidate.setExamNo("5054");
         candidate.setListNo(new BigDecimal("10.000"));
         
-        when(repository.findAll()).thenReturn(List.of(candidate));
-        when(repository.findById(101L)).thenReturn(java.util.Optional.of(candidate));
+        var selectStep = mock(org.hibernate.search.engine.search.query.dsl.SearchQuerySelectStep.class);
+        var whereStep = mock(org.hibernate.search.engine.search.query.dsl.SearchQueryWhereStep.class);
+        var optionsStep = mock(org.hibernate.search.engine.search.query.dsl.SearchQueryOptionsStep.class);
+
+        when(session.search(any(Class.class))).thenReturn(selectStep);
+        when(selectStep.select(any(Class.class))).thenReturn(whereStep);
+        when(whereStep.where(any(java.util.function.Function.class))).thenReturn(optionsStep);
+        when(optionsStep.fetchAllHits()).thenReturn(List.of(candidate));
+        when(optionsStep.fetchSingleHit()).thenReturn(Optional.of(candidate));
 
         // 1. Run Search Results (lightweight search)
         SearchService.SearchResponse searchResponse = searchService.searchEntries("JOHN");
@@ -279,10 +305,10 @@ class SearchServiceTests {
 
     @Test
     void testGetCertificationOrEstimationWithPayrollMatch() {
-        CivilServiceListRecordRepository repository = mock(CivilServiceListRecordRepository.class);
+        SearchMapping searchMapping = mock(SearchMapping.class);
         CivilServiceSyncService syncService = mock(CivilServiceSyncService.class);
         CivilServiceListSyncService listSyncService = mock(CivilServiceListSyncService.class);
-        SearchService searchService = new SearchService(repository, syncService, listSyncService);
+        SearchService searchService = new SearchService(searchMapping, syncService, listSyncService);
 
         CivilServiceListRecord candidate = new CivilServiceListRecord();
         candidate.setId(202L);

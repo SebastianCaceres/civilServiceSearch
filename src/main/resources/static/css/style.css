@@ -1,1 +1,94 @@
-/* Custom CSS removed. Using Bootstrap CDN. */
+/* Unified styles for Civil Service Search Portal */
+
+body { font-family: Arial, sans-serif; margin: 1.2rem auto; max-width: 980px; padding: 0 1rem; }
+a { color: #1a0dab; text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1 { margin: 0.8rem 0 1rem; }
+
+/* Top Section & Forms */
+.top { margin-bottom: 1rem; }
+form { display: flex; gap: 0.5rem; }
+input[type="text"] { flex: 1; padding: 0.65rem; font-size: 1rem; }
+button { padding: 0.65rem 1rem; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.8; }
+.hint { color: #555; margin-top: 0.8rem; font-size: 0.95rem; }
+
+/* Search Shifting Layout (search.html) */
+#navbar-top {
+    margin-top: 25vh;
+    transition: margin-top 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    text-align: center;
+}
+#navbar-top.has-results {
+    margin-top: 0;
+    text-align: left;
+}
+
+/* Results Section */
+.meta { color: #555; margin: 0.7rem 0 1rem; }
+.result { padding: 0.85rem 0; border-bottom: 1px solid #ddd; text-align: left; }
+.title-link { text-decoration: none; color: #1a0dab; font-size: 1.1rem; }
+.title-link:hover { text-decoration: underline; }
+.subtitle { color: #1565c0; margin-top: 0.2rem; }
+.agency { color: #333; margin-top: 0.15rem; }
+.details { color: #666; margin-top: 0.2rem; font-size: 0.9rem; }
+mark { background: #fff59d; }
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 0.35em 0.5em;
+    font-size: 78%;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    margin-top: 0.35rem;
+}
+.badge-success {
+    color: #fff;
+    background-color: #28a745;
+}
+.badge-primary {
+    color: #fff;
+    background-color: #007bff;
+}
+.badge-warning {
+    color: #212529;
+    background-color: #ffc107;
+}
+
+/* Record Details Page */
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.55rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+th { width: 240px; color: #333; background: #fafafa; }
+.card { border: 1px solid #ccc; border-radius: 4px; padding: 1.2rem; margin-top: 1.5rem; background: #fbfbfb; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.card-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.8rem; color: #111; border-bottom: 1px solid #eee; padding-bottom: 0.4rem; }
+.card p { margin: 0.45rem 0; line-height: 1.4; }
+
+/* Spinners & HTMX indicators */
+.spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0,0,0,0.15);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.htmx-indicator {
+    display: none;
+}
+.htmx-request .htmx-indicator {
+    display: inline-block;
+}
+.htmx-request.htmx-indicator {
+    display: inline-block;
+}

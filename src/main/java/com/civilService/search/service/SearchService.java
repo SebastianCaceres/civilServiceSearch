@@ -2,8 +2,9 @@ package com.civilService.search.service;
 
 import com.civilService.search.entity.CivilServiceListRecord;
 import com.civilService.search.entity.CivilServiceRecord;
-import com.civilService.search.repository.CivilServiceListRecordRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.search.mapper.pojo.standalone.mapping.SearchMapping;
+import org.hibernate.search.mapper.pojo.standalone.session.SearchSession;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
@@ -28,12 +29,12 @@ public class SearchService {
 
     private static final Pattern TOKEN_PATTERN = Pattern.compile("(?:\u201C([^\u201C\u201D]+)\u201D|([^\\s]+))");
 
-    private final CivilServiceListRecordRepository repository;
+    private final SearchMapping searchMapping;
     private final CivilServiceSyncService syncService;
     private final CivilServiceListSyncService listSyncService;
 
-    public SearchService(CivilServiceListRecordRepository repository, CivilServiceSyncService syncService, CivilServiceListSyncService listSyncService) {
-        this.repository = repository;
+    public SearchService(SearchMapping searchMapping, CivilServiceSyncService syncService, CivilServiceListSyncService listSyncService) {
+        this.searchMapping = searchMapping;
         this.syncService = syncService;
         this.listSyncService = listSyncService;
     }
@@ -49,11 +50,44 @@ public class SearchService {
         long start = System.currentTimeMillis();
         ParsedQuery parsed = parseQuery(query);
 
-        // Fetch candidate list records matching query using repository
-        List<CivilServiceListRecord> dbHits = repository.findAll();
-        List<ScoredHit> scored = new ArrayList<>();
+        // Fetch candidate list records matching query using Lucene
+        List<CivilServiceListRecord> luceneHits = new ArrayList<>();
+        try (SearchSession session = searchMapping.createSession()) {
+            List<CivilServiceListRecord> searchResult = session.search(CivilServiceListRecord.class)
+                    .select(CivilServiceListRecord.class)
+                    .where(f -> f.bool(b -> {
+                        for (String term : parsed.positiveTerms()) {
+                            b.must(f.or(
+                                f.match().field("firstName").matching(term),
+                                f.match().field("lastName").matching(term),
+                                f.match().field("listTitleDesc").matching(term),
+                                f.match().field("listAgencyDesc").matching(term),
+                                f.match().field("examNo").matching(term),
+                                f.match().field("status").matching(term)
+                            ));
+                        }
+                        for (String term : parsed.negativeTerms()) {
+                            b.mustNot(f.or(
+                                f.match().field("firstName").matching(term),
+                                f.match().field("lastName").matching(term),
+                                f.match().field("listTitleDesc").matching(term),
+                                f.match().field("listAgencyDesc").matching(term),
+                                f.match().field("examNo").matching(term),
+                                f.match().field("status").matching(term)
+                            ));
+                        }
+                        if (parsed.positiveTerms().isEmpty() && !parsed.negativeTerms().isEmpty()) {
+                            b.must(f.matchAll());
+                        }
+                    }))
+                    .fetchAllHits();
+            luceneHits.addAll(searchResult);
+        } catch (Exception e) {
+            log.error("Error running Lucene search query for: {}", query, e);
+        }
 
-        for (CivilServiceListRecord record : dbHits) {
+        List<ScoredHit> scored = new ArrayList<>();
+        for (CivilServiceListRecord record : luceneHits) {
             int score = scoreRecord(record, parsed);
             if (score > 0) {
                 scored.add(new ScoredHit(record, score));
@@ -98,14 +132,22 @@ public class SearchService {
     }
 
     public CivilServiceListRecord getRecordById(Long id) {
-        return repository.findById(id).orElse(null);
+        try (SearchSession session = searchMapping.createSession()) {
+            return session.search(CivilServiceListRecord.class)
+                    .select(CivilServiceListRecord.class)
+                    .where(f -> f.id().matching(id))
+                    .fetchSingleHit()
+                    .orElse(null);
+        }
     }
 
     private int scoreRecord(CivilServiceListRecord entry, ParsedQuery parsed) {
         String fullName = buildFullName(entry).toLowerCase();
         String title = safeLower(entry.getListTitleDesc());
         String agency = safeLower(entry.getListAgencyDesc());
-        String fullText = (fullName + " " + title + " " + agency).trim();
+        String status = safeLower(entry.getStatus());
+        String examNo = safeLower(entry.getExamNo());
+        String fullText = (fullName + " " + title + " " + agency + " " + status + " " + examNo).trim();
 
         for (String negative : parsed.negativeTerms()) {
             if (fullText.contains(negative)) {

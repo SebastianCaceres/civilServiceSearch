@@ -5,32 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Record Details</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 1.2rem auto; max-width: 980px; padding: 0 1rem; }
-        a { color: #1a0dab; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        h1 { margin: 0.8rem 0 1rem; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { text-align: left; padding: 0.55rem; border-bottom: 1px solid #ddd; vertical-align: top; }
-        th { width: 240px; color: #333; background: #fafafa; }
-        .card { border: 1px solid #ccc; border-radius: 4px; padding: 1.2rem; margin-top: 1.5rem; background: #fbfbfb; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .card-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.8rem; color: #111; border-bottom: 1px solid #eee; padding-bottom: 0.4rem; }
-        .card p { margin: 0.45rem 0; line-height: 1.4; }
-        .spinner {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid #ccc;
-            border-top-color: #333;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 6px;
-            vertical-align: middle;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
 <p>
