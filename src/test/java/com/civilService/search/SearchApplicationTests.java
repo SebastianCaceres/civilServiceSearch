@@ -46,6 +46,7 @@ class SearchApplicationTests {
 		// Clear Lucene index to ensure clean state
 		try (SearchSession session = searchMapping.createSession()) {
 			session.workspace(CivilServiceListRecord.class).purge();
+			session.workspace(com.civilService.search.entity.SyncMetadata.class).purge();
 		}
 
 		// Run sync

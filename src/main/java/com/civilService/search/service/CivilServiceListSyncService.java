@@ -91,11 +91,12 @@ public class CivilServiceListSyncService {
                 SyncMetadata localMetadata = null;
                 long localCount = 0;
                 try (SearchSession session = searchMapping.createSession()) {
-                    localMetadata = session.search(SyncMetadata.class)
+                    List<SyncMetadata> hits = session.search(SyncMetadata.class)
                             .select(SyncMetadata.class)
                             .where(f -> f.id().matching(datasetId))
-                            .fetchSingleHit()
-                            .orElse(null);
+                            .fetch(1)
+                            .hits();
+                    localMetadata = hits.isEmpty() ? null : hits.get(0);
 
                     localCount = session.search(CivilServiceListRecord.class)
                             .where(f -> f.match().field("status").matching(targetStatus))
@@ -112,8 +113,8 @@ public class CivilServiceListSyncService {
                 }
             }
 
+            // 1. Delete old records
             try (SearchSession session = searchMapping.createSession()) {
-                // Bulk delete first from Lucene index
                 log.info("Performing bulk delete in Lucene for status: {}", targetStatus);
                 List<CivilServiceListRecord> recordsToDelete = session.search(CivilServiceListRecord.class)
                         .select(CivilServiceListRecord.class)
@@ -122,89 +123,98 @@ public class CivilServiceListSyncService {
                 for (CivilServiceListRecord record : recordsToDelete) {
                     session.indexingPlan().delete(record);
                 }
+            }
 
-                try (InputStream is = getInputStreamForDataset(datasetId)) {
-                    // Set up Jackson CSV mapper
-                    CsvMapper mapper = new CsvMapper();
-                    mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                    mapper.enable(com.fasterxml.jackson.databind.DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
-                    mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            // 2. Download and insert records in chunks
+            int insertedCount = 0;
+            int skippedCount = 0;
+            int totalFetched = 0;
 
-                    CsvSchema schema = CsvSchema.emptySchema().withHeader();
+            try (InputStream is = getInputStreamForDataset(datasetId)) {
+                CsvMapper mapper = new CsvMapper();
+                mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                mapper.enable(com.fasterxml.jackson.databind.DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
+                mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+                CsvSchema schema = CsvSchema.emptySchema().withHeader();
 
-                    int insertedCount = 0;
-                    int skippedCount = 0;
-                    int totalFetched = 0;
+                record ListKey(String examNo, java.math.BigDecimal listNo, String listAgencyCode, String firstName, String lastName) {}
+                java.util.Set<ListKey> processedKeys = new java.util.HashSet<>();
 
-                    record ListKey(String examNo, java.math.BigDecimal listNo, String listAgencyCode, String firstName, String lastName) {}
-                    java.util.Set<ListKey> processedKeys = new java.util.HashSet<>();
+                SearchSession session = searchMapping.createSession();
+                try (MappingIterator<CivilServiceListRecord> it = mapper.readerFor(CivilServiceListRecord.class).with(schema).readValues(is)) {
+                    while (it.hasNext()) {
+                        if (syncLimit >= 0 && totalFetched >= syncLimit) {
+                            log.info("Reached configured list sync limit of {}. Stopping CSV download.", syncLimit);
+                            break;
+                        }
 
-                    try (MappingIterator<CivilServiceListRecord> it = mapper.readerFor(CivilServiceListRecord.class).with(schema).readValues(is)) {
-                        while (it.hasNext()) {
-                            if (syncLimit >= 0 && totalFetched >= syncLimit) {
-                                log.info("Reached configured list sync limit of {}. Stopping CSV download.", syncLimit);
-                                break;
+                        CivilServiceListRecord record = it.next();
+                        totalFetched++;
+
+                        if (record.getExamNo() == null || record.getListNo() == null ||
+                            record.getListAgencyCode() == null || record.getFirstName() == null ||
+                            record.getLastName() == null) {
+                            skippedCount++;
+                            if (skippedCount <= 5) {
+                                log.warn("Skipped record due to null key fields: examNo={}, listNo={}, agencyCode={}, firstName={}, lastName={}",
+                                         record.getExamNo(), record.getListNo(), record.getListAgencyCode(), record.getFirstName(), record.getLastName());
                             }
+                            continue;
+                        }
 
-                            CivilServiceListRecord record = it.next();
-                            totalFetched++;
+                        String examNo = record.getExamNo().trim();
+                        BigDecimal listNo = record.getListNo().stripTrailingZeros();
+                        String agencyCode = record.getListAgencyCode().trim();
+                        String firstName = record.getFirstName().trim();
+                        String lastName = record.getLastName().trim();
 
-                            // Check composite key validity
-                            if (record.getExamNo() == null || record.getListNo() == null ||
-                                record.getListAgencyCode() == null || record.getFirstName() == null ||
-                                record.getLastName() == null) {
-                                skippedCount++;
-                                if (skippedCount <= 5) {
-                                    log.warn("Skipped record due to null key fields: examNo={}, listNo={}, agencyCode={}, firstName={}, lastName={}",
-                                             record.getExamNo(), record.getListNo(), record.getListAgencyCode(), record.getFirstName(), record.getLastName());
-                                }
-                                continue;
+                        record.setExamNo(examNo);
+                        record.setListNo(listNo);
+                        record.setListAgencyCode(agencyCode);
+                        record.setFirstName(firstName);
+                        record.setLastName(lastName);
+                        if (record.getMi() != null) {
+                            record.setMi(record.getMi().trim());
+                        }
+
+                        ListKey key = new ListKey(examNo, listNo, agencyCode, firstName, lastName);
+                        if (!processedKeys.add(key)) {
+                            skippedCount++;
+                            if (skippedCount <= 5) {
+                                log.warn("Skipped record due to duplicate key in current batch: {}", key);
                             }
+                            continue;
+                        }
 
-                            // Normalize key fields to prevent unique constraint violations
-                            String examNo = record.getExamNo().trim();
-                            BigDecimal listNo = record.getListNo().stripTrailingZeros();
-                            String agencyCode = record.getListAgencyCode().trim();
-                            String firstName = record.getFirstName().trim();
-                            String lastName = record.getLastName().trim();
+                        record.setId(generateId(examNo, listNo, agencyCode, firstName, lastName));
+                        record.setStatus(targetStatus);
 
-                            record.setExamNo(examNo);
-                            record.setListNo(listNo);
-                            record.setListAgencyCode(agencyCode);
-                            record.setFirstName(firstName);
-                            record.setLastName(lastName);
-                            if (record.getMi() != null) {
-                                record.setMi(record.getMi().trim());
-                            }
+                        session.indexingPlan().add(record);
+                        insertedCount++;
 
-                            ListKey key = new ListKey(examNo, listNo, agencyCode, firstName, lastName);
-                            if (!processedKeys.add(key)) {
-                                skippedCount++;
-                                if (skippedCount <= 5) {
-                                    log.warn("Skipped record due to duplicate key in current batch: {}", key);
-                                }
-                                continue;
-                            }
-
-                            record.setId(generateId(examNo, listNo, agencyCode, firstName, lastName));
-                            record.setStatus(targetStatus);
-                            
-                            // Add to session indexing plan
-                            session.indexingPlan().add(record);
-                            insertedCount++;
+                        if (insertedCount % 50000 == 0) {
+                            log.info("Flushing Lucene session batch for {} (processed {})...", targetStatus, insertedCount);
+                            session.close();
+                            session = searchMapping.createSession();
                         }
                     }
-
-                    // Save the new remote timestamp after successful sync
-                    if (remoteTimestamp != null) {
-                        session.indexingPlan().add(new SyncMetadata(datasetId, remoteTimestamp));
+                } finally {
+                    if (session != null) {
+                        session.close();
                     }
-
-                    long duration = System.currentTimeMillis() - startTime;
-                    log.info("Sync of {} complete! Duration: {} ms. Total processed: {}, Inserted: {}, Skipped: {}.",
-                            targetStatus, duration, totalFetched, insertedCount, skippedCount);
                 }
-            } // main session commits here
+            }
+
+            // 3. Save the new remote timestamp
+            if (remoteTimestamp != null) {
+                try (SearchSession session = searchMapping.createSession()) {
+                    session.indexingPlan().add(new SyncMetadata(datasetId, remoteTimestamp));
+                }
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("Sync of {} complete! Duration: {} ms. Total processed: {}, Inserted: {}, Skipped: {}.",
+                    targetStatus, duration, totalFetched, insertedCount, skippedCount);
 
             // Optimize segment layout after changes are committed:
             try (SearchSession session = searchMapping.createSession()) {
