@@ -50,15 +50,15 @@ Run the JUnit integration and unit tests:
 
 ## NYC Civil Service Terminology & Ingestion Logic
 
-In NYC Civil Service terminology, a **"certification"** (often referred to as a certification list or cert) simply means the candidate's name was referred/sent to a hiring agency for consideration. A candidate can indeed be certified multiple times to different agencies (or the same agency) without being hired.
+In NYC Civil Service terminology, a **"certification"** (referred to as a certification list or cert) means the candidate's name was referred/sent to a hiring agency for consideration. A candidate can be certified multiple times to different agencies without being appointed.
 
-To confirm that a candidate was actually hired and is currently in a civil service title, you should look for the following fields and values:
+To confirm whether a certified candidate was actually hired and is currently working in a civil service title, the application implements the following automated verification logic:
 
-1. **Disposition / Action Description (`disposition_desc` or `action_desc`)**:
-   * This is the definitive field that indicates the outcome of a certification.
-   * You are looking for a value of **"APPOINTED"** (specifically "Appointed - Permanent" or "Appointed - Probationary").
-   * Other values like "Declined", "Failed to Appear", "Failed Medical", "No Response", or "Not Reached" indicate the candidate was reached/certified but not placed in the title.
-2. **Adjusted Final Average / Score (`adj_fa`) vs. List Status**:
-   * If a candidate's status on the eligible list changes to **"Terminated"** (with a filled `termination_date`), it often indicates they were appointed from the list, though it could also mean the list expired or the candidate was removed for other reasons (such as declining multiple times).
-3. **Agency/Title Match**:
-   * Comparing the `list_agency_code` / `list_agency_desc` (which represents the agency they were certified to) against the final disposition status of "Appointed" confirms which city agency they are officially serving in under that civil service title.
+1. **Certification Match & Extraction:**
+   * The application fetches live certification records from the **Active Civil Service Certifications** dataset (`a9md-ynri`) matching the candidate's exam number.
+   * It looks for an exact match of the candidate's list number (`listNo`) to extract the **certification date (`certDate`)** and the **certified agency code (`listAgencyCode`)**.
+
+2. **Civil List (Payroll) Cross-Referencing:**
+   * If a certification match exists, it dynamically queries the **NYC Civil List (Payroll)** dataset (`ye3c-m4ga`) using the certified agency code and the candidate's first and last names.
+   * It checks for payroll entries where the calendar year is **after** the certification date's year (`certDate.getYear() < calendar_year`).
+   * If a match is found, the candidate's status is marked as **Appointed** (hired), and their official title, agency, and salary details are pulled from the payroll record and displayed to confirm active employment.
