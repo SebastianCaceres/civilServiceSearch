@@ -284,8 +284,11 @@ public class CivilServiceListSyncService {
 
     @Data
     public static class MetadataResponse {
+        @com.fasterxml.jackson.annotation.JsonProperty("id")
         private String id;
+        @com.fasterxml.jackson.annotation.JsonProperty("rowsUpdatedAt")
         private Long rowsUpdatedAt;
+        @com.fasterxml.jackson.annotation.JsonProperty("updatedAt")
         private Long updatedAt;
     }
 }
