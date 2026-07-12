@@ -50,15 +50,15 @@ Run the JUnit integration and unit tests:
 
 ## NYC Civil Service Terminology & Ingestion Logic
 
-In NYC Civil Service terminology, a **"certification"** (referred to as a certification list or cert) means the candidate's name was referred/sent to a hiring agency for consideration. A candidate can be certified multiple times to different agencies without being appointed.
+In NYC Civil Service terminology, a candidate being **"reached"** (technically called being "certified" to an agency) means their name was referred/sent to a hiring agency for consideration from the eligible list. A candidate can be reached multiple times by different agencies without being appointed.
 
-To confirm whether a certified candidate was actually hired and is currently working in a civil service title, the application implements the following automated verification logic:
+To confirm whether a candidate who was **reached** was actually hired and is currently working in a civil service title, the application implements the following automated verification logic:
 
-1. **Certification Match & Extraction:**
-   * The application fetches live certification records from the **Active Civil Service Certifications** dataset (`a9md-ynri`) matching the candidate's exam number.
-   * It looks for an exact match of the candidate's list number (`listNo`) to extract the **certification date (`certDate`)** and the **certified agency code (`listAgencyCode`)**.
+1. **Reachable Status Match & Extraction:**
+   * The application fetches live data from the **Active Civil Service Certifications** dataset (`a9md-ynri`) matching the candidate's exam number.
+   * It looks for an exact match of the candidate's list number (`listNo`) to determine if they were reached, and extracts the **reached date** and the **certified agency code**.
 
 2. **Civil List (Payroll) Cross-Referencing:**
-   * If a certification match exists, it dynamically queries the **NYC Civil List (Payroll)** dataset (`ye3c-m4ga`) using the certified agency code and the candidate's first and last names.
-   * It checks for payroll entries where the calendar year is **after** the certification date's year (`certDate.getYear() < calendar_year`).
+   * If a candidate is determined to be **reached**, it dynamically queries the **NYC Civil List (Payroll)** dataset (`ye3c-m4ga`) using the certified agency code and the candidate's name.
+   * It checks for payroll entries where the calendar year is **after** the reached date's year.
    * If a match is found, the candidate's status is marked as **Appointed** (hired), and their official title, agency, and salary details are pulled from the payroll record and displayed to confirm active employment.
