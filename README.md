@@ -62,3 +62,9 @@ To confirm whether a candidate who was **reached** was actually hired and is cur
    * If a candidate is determined to be **reached**, it dynamically queries the **NYC Civil List (Payroll)** dataset (`ye3c-m4ga`) using the certified agency code and the candidate's name.
    * It checks for payroll entries where the calendar year is **after** the reached date's year.
    * If a match is found, the candidate's status is marked as **Appointed** (hired), and their official title, agency, and salary details are pulled from the payroll record and displayed to confirm active employment.
+
+3. **Reachable Timeline Estimation (Linear Regression):**
+   * If a candidate has not yet been reached, the application uses **ordinary least squares linear regression** to project when they will be reached based on historical request rates for their exam.
+   * Data points are generated using `(x = certification sequence rank, y = days elapsed since the first request date)`.
+   * If the regression predicts a past date (or returns `<= 0` days) but the candidate hasn't been reached, it falls back to a linear rate projection (ranks covered per day) based on actual history.
+   * Skip detection is built-in: it ignores list number "skips" (where the gap between subsequent list numbers is greater than 1.5) to keep projections stable and prevent outlier contamination.
