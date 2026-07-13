@@ -14,10 +14,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 import org.hibernate.search.mapper.pojo.standalone.mapping.SearchMapping;
 import org.hibernate.search.mapper.pojo.standalone.session.SearchSession;
@@ -137,9 +134,6 @@ public class CivilServiceListSyncService {
                 mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
                 CsvSchema schema = CsvSchema.emptySchema().withHeader();
 
-                record ListKey(String examNo, java.math.BigDecimal listNo, String listAgencyCode, String firstName, String lastName) {}
-                java.util.Set<ListKey> processedKeys = new java.util.HashSet<>();
-
                 SearchSession session = searchMapping.createSession();
                 try (MappingIterator<CivilServiceListRecord> it = mapper.readerFor(CivilServiceListRecord.class).with(schema).readValues(is)) {
                     while (it.hasNext()) {
@@ -175,15 +169,6 @@ public class CivilServiceListSyncService {
                         record.setLastName(lastName);
                         if (record.getMi() != null) {
                             record.setMi(record.getMi().trim());
-                        }
-
-                        ListKey key = new ListKey(examNo, listNo, agencyCode, firstName, lastName);
-                        if (!processedKeys.add(key)) {
-                            skippedCount++;
-                            if (skippedCount <= 5) {
-                                log.warn("Skipped record due to duplicate key in current batch: {}", key);
-                            }
-                            continue;
                         }
 
                         record.setId(generateId(examNo, listNo, agencyCode, firstName, lastName));

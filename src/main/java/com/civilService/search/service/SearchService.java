@@ -83,7 +83,7 @@ public class SearchService {
                     .fetchAllHits();
             luceneHits.addAll(searchResult);
         } catch (Exception e) {
-            log.error("Error running Lucene search query for: {}", query, e);
+            log.error("Error running Lucene search query", e);
         }
 
         List<ScoredHit> scored = new ArrayList<>();

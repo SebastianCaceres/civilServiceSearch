@@ -37,7 +37,6 @@ public class CivilServiceSyncService {
      * Live query: fetch all certifications for a specific exam from NYC Open Data.
      */
     public List<CivilServiceRecord> fetchCertificationsByExamNo(String examNo) {
-        log.info("Fetching live certifications from SODA3 API for exam_no: {}", examNo);
         try {
             // query: SELECT * WHERE exam_no like '%examNo%' ORDER BY list_no ASC LIMIT 50000
             String soql = "SELECT * WHERE exam_no like '%" + examNo + "%' ORDER BY list_no ASC LIMIT 50000";
@@ -53,11 +52,10 @@ public class CivilServiceSyncService {
 
             CivilServiceRecord[] records = spec.retrieve().body(CivilServiceRecord[].class);
             if (records != null) {
-                log.info("Successfully fetched {} live certifications for exam_no: {}", records.length, examNo);
                 return List.of(records);
             }
         } catch (Exception e) {
-            log.error("Failed to fetch live SODA3 certifications for exam_no: {}", examNo, e);
+            log.error("Failed to fetch live SODA3 certifications", e);
         }
         return List.of();
     }
@@ -66,7 +64,6 @@ public class CivilServiceSyncService {
      * Live query: fetch payroll records from NYC Civil List (ye3c-m4ga) for a candidate.
      */
     public List<CivilListPayrollRecord> fetchPayrollRecords(String agencyCode, String firstName, String mi, String lastName) {
-        log.info("Fetching payroll records for agencyCode: {}, name: {} {} {}", agencyCode, firstName, mi, lastName);
         if (agencyCode == null || agencyCode.isBlank() || firstName == null || firstName.isBlank() || lastName == null || lastName.isBlank()) {
             return List.of();
         }
@@ -94,11 +91,10 @@ public class CivilServiceSyncService {
 
             CivilListPayrollRecord[] records = spec.retrieve().body(CivilListPayrollRecord[].class);
             if (records != null) {
-                log.info("Successfully fetched {} payroll records for {} (dpt={})", records.length, employeeName, agencyCode);
                 return List.of(records);
             }
         } catch (Exception e) {
-            log.error("Failed to fetch payroll records for candidate: " + firstName + " " + lastName, e);
+            log.error("Failed to fetch payroll records", e);
         }
         return List.of();
     }
