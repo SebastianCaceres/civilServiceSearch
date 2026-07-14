@@ -9,9 +9,10 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.civilService.search.dto.SearchResponseDto;
+import com.civilService.search.dto.CivilServiceListRecordDto;
 import com.civilService.search.service.SearchService;
 
 @Controller
@@ -23,38 +24,44 @@ public class ApiController {
         this.searchService = searchService;
     }
 
-
-
     @GetMapping({"/", "/search"})
     public String searchPage() {
         return "search";
     }
 
-
-    @GetMapping("/results")
+    @GetMapping(value = "/results", headers = "!HX-Request")
     public String resultsPage(@RequestParam(defaultValue = "") String q,
-                              @RequestHeader(value = "HX-Request", required = false) String hxRequest,
+                              @RequestParam(defaultValue = "1") int page,
                               Model model) {
-        SearchService.SearchResponse response = searchService.searchEntries(q);
+        processPageResults(q, page, model, false);
+        return "results";
+    }
+
+    private void processPageResults(String q, int page, Model model, boolean isHtmx) {
+        SearchResponseDto response = searchService.searchEntries(q, page, 20);
         model.addAttribute("q", q);
         model.addAttribute("results", response.results());
         model.addAttribute("resultCount", response.totalCount());
         model.addAttribute("searchMs", response.tookMs());
-        
-        boolean isHtmx = hxRequest != null;
+        model.addAttribute("currentPage", response.currentPage());
+        model.addAttribute("totalPages", response.totalPages());
         model.addAttribute("isHtmx", isHtmx);
-        
-        if (isHtmx) {
-            return "results :: results-list";
-        }
-        return "results";
+    }
+
+    @GetMapping("/results")
+    @HxRequest
+    public String resultsPageHtmx(@RequestParam(defaultValue = "") String q,
+                                  @RequestParam(defaultValue = "1") int page,
+                                  Model model) {
+        processPageResults(q, page, model, true);
+        return "results :: results-list";
     }
 
     @GetMapping("/record/{id}")
     public String recordPage(@PathVariable long id, @RequestParam(defaultValue = "") String q, Model model) {
         try {
             com.civilService.search.entity.CivilServiceListRecord record = searchService.getRecordById(id);
-            model.addAttribute("entry", record);
+            model.addAttribute("entry", CivilServiceListRecordDto.fromEntity(record));
             model.addAttribute("q", q);
             return "record";
         } catch (NoSuchElementException ex) {
@@ -69,7 +76,7 @@ public class ApiController {
             if (record == null) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Record not found");
             }
-            model.addAttribute("entry", record);
+            model.addAttribute("entry", CivilServiceListRecordDto.fromEntity(record));
             model.addAttribute("estimation", searchService.getCertificationOrEstimation(record));
             return "record :: details-fragments";
         } catch (NoSuchElementException ex) {

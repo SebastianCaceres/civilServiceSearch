@@ -18,7 +18,9 @@ import org.hibernate.search.mapper.pojo.standalone.session.SearchSession;
 import com.civilService.search.service.CivilServiceSyncService;
 import com.civilService.search.service.CivilServiceListSyncService;
 import com.civilService.search.service.SearchService;
-import com.civilService.search.service.SearchService.CertificationEstimation;
+import com.civilService.search.dto.SearchHitDto;
+import com.civilService.search.dto.SearchResponseDto;
+import com.civilService.search.dto.CertificationEstimationDto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,7 +59,7 @@ class SearchServiceTests {
         when(whereStep.where(any(java.util.function.Function.class))).thenReturn(optionsStep);
         when(optionsStep.fetchAllHits()).thenReturn(List.of(entry));
 
-        SearchService.SearchResponse response = searchService.searchEntries("PINAKIN R PATEL");
+        SearchResponseDto response = searchService.searchEntries("PINAKIN R PATEL");
 
         assertThat(response.totalCount()).isEqualTo(1);
         String fullNameHtml = response.results().get(0).fullNameHtml();
@@ -87,7 +89,7 @@ class SearchServiceTests {
         when(syncService.fetchCertificationsByExamNo("8042"))
                 .thenReturn(List.of(certification));
 
-        CertificationEstimation result = searchService.getCertificationOrEstimation(candidate);
+        CertificationEstimationDto result = searchService.getCertificationOrEstimation(candidate);
 
         assertThat(result.isHasCertificate()).isTrue();
         assertThat(result.getCertificate()).isEqualTo(certification);
@@ -124,7 +126,7 @@ class SearchServiceTests {
 
         when(syncService.fetchCertificationsByExamNo("1234")).thenReturn(List.of(cert1, cert2));
 
-        CertificationEstimation result = searchService.getCertificationOrEstimation(candidate);
+        CertificationEstimationDto result = searchService.getCertificationOrEstimation(candidate);
 
         assertThat(result.isHasCertificate()).isFalse();
         assertThat(result.getMaxReachNumber()).isEqualTo(new BigDecimal("11.50"));
@@ -181,7 +183,7 @@ class SearchServiceTests {
 
         when(syncService.fetchCertificationsByExamNo("5555")).thenReturn(List.of(cert1, cert2, cert3, cert4));
 
-        CertificationEstimation result = searchService.getCertificationOrEstimation(candidate);
+        CertificationEstimationDto result = searchService.getCertificationOrEstimation(candidate);
 
         // The list should be truncated to [1.0, 2.0, 3.5]. cert4 (10.0) is discarded.
         assertThat(result.isHasCertificate()).isFalse();
@@ -203,7 +205,7 @@ class SearchServiceTests {
         List<CivilServiceRecord> mockCerts = loadMockCertificationsFromCsv();
         when(syncService.fetchCertificationsByExamNo("5054")).thenReturn(mockCerts);
 
-        CertificationEstimation result = searchService.getCertificationOrEstimation(candidate);
+        CertificationEstimationDto result = searchService.getCertificationOrEstimation(candidate);
 
         // Verify that maxReachNumber matches 344.000 (no skips > 1.5 in entire dataset)
         assertThat(result.isHasCertificate()).isFalse();
@@ -274,7 +276,7 @@ class SearchServiceTests {
         when(optionsStep.fetchSingleHit()).thenReturn(Optional.of(candidate));
 
         // 1. Run Search Results (lightweight search)
-        SearchService.SearchResponse searchResponse = searchService.searchEntries("JOHN");
+        SearchResponseDto searchResponse = searchService.searchEntries("JOHN");
 
         // Verify basic metadata returned
         assertThat(searchResponse.totalCount()).isEqualTo(1);
@@ -296,7 +298,7 @@ class SearchServiceTests {
         when(syncService.fetchCertificationsByExamNo("5054")).thenReturn(List.of(cert));
 
         // Trigger linear regression estimation / dynamic lookups
-        CertificationEstimation estimation = searchService.getCertificationOrEstimation(fetched);
+        CertificationEstimationDto estimation = searchService.getCertificationOrEstimation(fetched);
         
         // Verify syncService WAS called for details view
         org.mockito.Mockito.verify(syncService).fetchCertificationsByExamNo("5054");
@@ -344,7 +346,7 @@ class SearchServiceTests {
         when(syncService.fetchCertificationsByExamNo("5054")).thenReturn(List.of(mockCert));
 
         // Run
-        CertificationEstimation estimation = searchService.getCertificationOrEstimation(candidate);
+        CertificationEstimationDto estimation = searchService.getCertificationOrEstimation(candidate);
 
         // Assertions
         assertThat(estimation.isAppointed()).isTrue();

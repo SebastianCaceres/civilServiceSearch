@@ -9,6 +9,9 @@ import org.springframework.web.servlet.view.InternalResourceViewResolver;
 
 import com.civilService.search.controller.ApiController;
 import com.civilService.search.entity.CivilServiceListRecord;
+import com.civilService.search.dto.SearchHitDto;
+import com.civilService.search.dto.SearchResponseDto;
+import com.civilService.search.dto.CertificationEstimationDto;
 import com.civilService.search.service.SearchService;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,7 +38,7 @@ class ApiControllerTests {
 
     @Test
     void resultsPageReturnsViewAndModel() throws Exception {
-        SearchService.SearchHit hit = new SearchService.SearchHit(
+        SearchHitDto hit = new SearchHitDto(
                 42L,
                 "Karim Porgo",
                 "COMPUTER SPECIALIST (SOFTWARE)",
@@ -53,8 +56,8 @@ class ApiControllerTests {
                 null,
                 null
         );
-        when(searchService.searchEntries(eq("kar por")))
-                .thenReturn(new SearchService.SearchResponse(List.of(hit), 1, 12));
+        when(searchService.searchEntries(eq("kar por"), eq(1), eq(20)))
+                .thenReturn(new SearchResponseDto(List.of(hit), 1, 12, 1, 1));
 
         mockMvc.perform(get("/results").param("q", "kar por"))
                 .andExpect(status().isOk())
@@ -94,8 +97,10 @@ class ApiControllerTests {
         entry.setFirstName("Karim");
         entry.setLastName("Porgo");
         when(searchService.getRecordById(eq(42L))).thenReturn(entry);
+        CertificationEstimationDto estimation = new CertificationEstimationDto();
+        estimation.setHasCertificate(false);
         when(searchService.getCertificationOrEstimation(entry))
-                .thenReturn(SearchService.CertificationEstimation.builder().hasCertificate(false).build());
+                .thenReturn(estimation);
 
         mockMvc.perform(get("/record/42/details"))
                 .andExpect(status().isOk())

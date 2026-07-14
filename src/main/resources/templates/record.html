@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Record Details</title>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -12,12 +12,12 @@
     <a th:href="@{/results(q=${q})}">Back to results</a>
 </p>
 
-<h1 th:text="${entry.firstName + ' ' + (entry.mi == null ? '' : entry.mi + ' ') + entry.lastName}">Record</h1>
+<h1 th:text="${entry.fullName}">Record</h1>
 
 <table>
     <tr><th>ID</th><td th:text="${entry.id}"></td></tr>
     <tr><th>Exam No</th><td th:text="${entry.examNo}"></td></tr>
-    <tr><th>List No</th><td th:text="${entry.listNo}"></td></tr>
+    <tr><th>List No</th><td th:text="${entry.formattedListNo}"></td></tr>
     <tr><th>First Name</th><td th:text="${entry.firstName}"></td></tr>
     <tr><th>MI</th><td th:text="${entry.mi}"></td></tr>
     <tr><th>Last Name</th><td th:text="${entry.lastName}"></td></tr>
@@ -39,8 +39,8 @@
     <tr id="status-row"><th>Status</th><td><span id="status-value" style="color: #666; font-style: italic;"><span class="spinner"></span>Verifying...</span></td></tr>
 </table>
 
-<!-- HTMX Trigger: loads the lazy fragments on DOM content load -->
-<div th:hx-get="@{/record/{id}/details(id=${entry.id})}" hx-trigger="load" hx-swap="none"></div>
+<!-- HTMX Trigger: loads the lazy fragments on DOM content load inside the reach card -->
+<div th:hx-get="@{/record/{id}/details(id=${entry.id})}" hx-trigger="load" hx-target="#reach-details-content" hx-swap="innerHTML" style="display: none;"></div>
 
 <div class="card" id="payroll-info" style="display: none;">
     <!-- Populated via HTMX OOB swap -->
@@ -69,13 +69,13 @@
 <div th:fragment="details-fragments" th:if="${estimation != null}" style="display: none;">
     <!-- 1. Status Row OOB Swap -->
     <span id="status-value" hx-swap-oob="true"
-          th:text="${estimation.isAppointed ? 'Appointed' : 'Not Appointed'}"
-          th:style="${estimation.isAppointed ? 'color: green; font-weight: bold;' : 'color: black; font-weight: normal;'}">
+          th:text="${estimation.statusText}"
+          th:style="${estimation.statusStyle}">
     </span>
 
     <!-- 2. Payroll Info Card OOB Swap -->
     <div id="payroll-info" hx-swap-oob="true" class="card"
-         th:style="${estimation.isAppointed ? 'display: block;' : 'display: none;'}">
+         th:style="${estimation.payrollCardStyle}">
         <div th:if="${estimation.isAppointed}">
             <div class="card-title" style="color: #28a745;">Appointed Payroll Verification</div>
             <p><strong>Appointment Status:</strong> <span style="color: green; font-weight: bold;">Appointed</span></p>
@@ -94,30 +94,73 @@
         
         <!-- If candidate has an exact certification record -->
         <div th:if="${estimation.hasCertificate}">
-            <p><strong>Reachable Status:</strong> <span style="color: green; font-weight: bold;">Reachable</span></p>
-            <p><strong>Agency:</strong> <span th:text="${estimation.certificate.listAgencyDesc != null ? estimation.certificate.listAgencyDesc : 'N/A'}"></span> (<span th:text="${estimation.certificate.listAgencyCode != null ? estimation.certificate.listAgencyCode : 'N/A'}"></span>)</p>
-            <p><strong>Title:</strong> <span th:text="${estimation.certificate.listTitleDesc != null ? estimation.certificate.listTitleDesc : 'N/A'}"></span></p>
-            <p><strong>Reachable Date:</strong> <span th:text="${estimation.certificate.certDate != null ? #temporals.format(estimation.certificate.certDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
-            <p><strong>Request Date:</strong> <span th:text="${estimation.certificate.requestDate != null ? #temporals.format(estimation.certificate.requestDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
-            <p><strong>Expiration Date:</strong> <span th:text="${estimation.certificate.certExpirationDate != null ? #temporals.format(estimation.certificate.certExpirationDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
-            <p><strong>Cert Issue No:</strong> <span th:text="${estimation.certificate.certIssueNo != null ? estimation.certificate.certIssueNo : 'N/A'}"></span></p>
-            <p><strong>Cert Seq No:</strong> <span th:text="${estimation.certificate.certSeqNo != null ? estimation.certificate.certSeqNo : 'N/A'}"></span></p>
-            <p><strong>Number Certified:</strong> <span th:text="${estimation.certificate.noCertified != null ? estimation.certificate.noCertified : 'N/A'}"></span></p>
-            <p><strong>Number Requested:</strong> <span th:text="${estimation.certificate.noRequested != null ? estimation.certificate.noRequested : 'N/A'}"></span></p>
-            <p><strong>Salary:</strong> <span th:text="${estimation.certificate.salary != null ? '$' + estimation.certificate.salary : 'N/A'}"></span></p>
-            <p><strong>Provisional Replacement:</strong> <span th:text="${estimation.certificate.provisionalReplacement != null ? estimation.certificate.provisionalReplacement : 'N/A'}"></span></p>
-            <p><strong>Selection Description:</strong> <span th:text="${estimation.certificate.selCertDescription != null ? estimation.certificate.selCertDescription : 'N/A'}"></span></p>
+            <p><strong>Reachable Status:</strong> 
+                <span th:if="${estimation.isExpired && !estimation.isAppointed}" style="color: #d9534f; font-weight: bold;">Expired</span>
+                <span th:if="${!estimation.isExpired || estimation.isAppointed}" style="color: green; font-weight: bold;">Reachable</span>
+            </p>
+
+            <!-- 100% completed Progress Bar -->
+            <div class="download-progress-container" style="margin: 1.5rem 0;">
+                <div class="progress-bar-label" style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.3rem;">
+                    <span>Reach Progress (List Rank):</span>
+                    <span>100% (Completed)</span>
+                </div>
+                <div class="progress-bar-outer" style="background: #eef; border-radius: 8px; height: 16px; overflow: hidden; width: 100%; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                    <div class="progress-bar-inner" th:style="'width: 100%; background: ' + ${estimation.progressBarColor} + '; height: 100%;'"></div>
+                </div>
+            </div>
+
+            <div class="analogy-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; background: #fafafa; padding: 1rem; border-radius: 8px; border: 1px solid #eee;">
+                <div><strong>Total Ranks to Reach:</strong> <span th:text="${entry.formattedListNo}"></span></div>
+                <div><strong>Completed (Max Reached):</strong> <span th:text="${estimation.maxReachNumberText}"></span></div>
+                <div><strong>Remaining Ranks:</strong> <span>0.000</span></div>
+                <div><strong>Speed (Request Rate):</strong> <span th:text="${estimation.reachRateText}"></span></div>
+            </div>
+
+            <p><strong>Agency:</strong> <span th:text="${estimation.agencyText}"></span></p>
+            <p><strong>Title:</strong> <span th:text="${estimation.titleText}"></span></p>
+            <p><strong>Reachable Date:</strong> <span th:text="${estimation.reachableDateText}"></span></p>
+            <p><strong>Request Date:</strong> <span th:text="${estimation.requestDateText}"></span></p>
+            <p><strong>Expiration Date:</strong> <span th:text="${estimation.expirationDateText}"></span></p>
+            <p><strong>Cert Issue No:</strong> <span th:text="${estimation.certIssueNoText}"></span></p>
+            <p><strong>Cert Seq No:</strong> <span th:text="${estimation.certSeqNoText}"></span></p>
+            <p><strong>Number Certified:</strong> <span th:text="${estimation.noCertifiedText}"></span></p>
+            <p><strong>Number Requested:</strong> <span th:text="${estimation.noRequestedText}"></span></p>
+            <p><strong>Salary:</strong> <span th:text="${estimation.salaryText}"></span></p>
+            <p><strong>Provisional Replacement:</strong> <span th:text="${estimation.provisionalReplacementText}"></span></p>
+            <p><strong>Selection Description:</strong> <span th:text="${estimation.selCertDescriptionText}"></span></p>
         </div>
 
         <!-- If candidate does not have a certification record, show estimation details -->
         <div th:if="${!estimation.hasCertificate}">
-            <p><strong>Reachable Status:</strong> <span style="color: #666; font-weight: bold;">Not Reachable</span></p>
-            <p><strong>Estimated Max Reach Number:</strong> <span th:text="${estimation.maxReachNumber != null ? estimation.maxReachNumber : 'N/A'}"></span></p>
-            <p><strong>First Date Someone Requested:</strong> <span th:text="${estimation.firstRequestedDate != null ? #temporals.format(estimation.firstRequestedDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
-            <p><strong>Last Date Someone Requested:</strong> <span th:text="${estimation.lastRequestedDate != null ? #temporals.format(estimation.lastRequestedDate, 'yyyy-MM-dd') : 'N/A'}"></span></p>
-            <p><strong>Estimated Days to Reach:</strong> 
+            <p><strong>Reachable Status:</strong> 
+                <span th:if="${estimation.isExpired}" style="color: #d9534f; font-weight: bold;">Expired</span>
+                <span th:if="${!estimation.isExpired}" style="color: #666; font-weight: bold;">Not Reachable Yet</span>
+            </p>
+
+            <!-- Interactive Progress Bar showing how close the list is to reaching the candidate -->
+            <div class="download-progress-container" style="margin: 1.5rem 0;">
+                <div class="progress-bar-label" style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.3rem;">
+                    <span>Reach Progress (List Rank):</span>
+                    <span th:text="${#numbers.formatDecimal(estimation.progressPercentage, 1, 1)} + '%'"></span>
+                </div>
+                <div class="progress-bar-outer" style="background: #eef; border-radius: 8px; height: 16px; overflow: hidden; width: 100%; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                    <div class="progress-bar-inner" th:style="'width: ' + ${estimation.progressPercentage} + '%; background: ' + ${estimation.progressBarColor} + '; height: 100%; transition: width 0.6s ease;'"></div>
+                </div>
+            </div>
+
+            <div class="analogy-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; background: #fafafa; padding: 1rem; border-radius: 8px; border: 1px solid #eee;">
+                <div><strong>Total Ranks to Reach:</strong> <span th:text="${entry.formattedListNo}"></span></div>
+                <div><strong>Completed (Max Reached):</strong> <span th:text="${estimation.maxReachNumberText}"></span></div>
+                <div><strong>Remaining Ranks:</strong> <span th:text="${estimation.remainingRanks}"></span></div>
+                <div><strong>Speed (Request Rate):</strong> <span th:text="${estimation.reachRateText}"></span></div>
+            </div>
+
+            <p><strong>Estimated Date Range of First Request:</strong> <span th:text="${estimation.firstRequestedDateText}"></span></p>
+            <p><strong>Estimated Date Range of Last Request:</strong> <span th:text="${estimation.lastRequestedDateText}"></span></p>
+            <p><strong>Estimated Time Remaining (ETA):</strong> 
                 <span style="font-weight: bold;" 
-                      th:style="${estimation.estimatedDaysToReach != null && estimation.estimatedDaysToReach == 0 ? 'color: green; font-weight: bold;' : 'color: #d9534f; font-weight: bold;'}"
+                      th:style="${estimation.estimatedDaysToReachStyle}"
                       th:text="${estimation.estimationStatus}"></span>
             </p>
         </div>

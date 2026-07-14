@@ -3,6 +3,8 @@ package com.civilService.search;
 import com.civilService.search.entity.CivilServiceListRecord;
 import com.civilService.search.service.CivilServiceListSyncService;
 import com.civilService.search.service.SearchService;
+import com.civilService.search.dto.SearchHitDto;
+import com.civilService.search.dto.SearchResponseDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -98,19 +100,19 @@ class SearchApplicationTests {
 		}
 
 		// Search list records using SearchService
-		SearchService.SearchResponse omarResponse = searchService.searchEntries("OMAR");
+		SearchResponseDto omarResponse = searchService.searchEntries("OMAR");
 		System.out.println("SearchService for 'OMAR' returned: " + omarResponse.totalCount() + " matches.");
 		assertThat(omarResponse.results()).isNotEmpty();
-		for (SearchService.SearchHit match : omarResponse.results()) {
+		for (SearchHitDto match : omarResponse.results()) {
 			System.out.println("Match: " + match.fullNameHtml() + " - status: " + match.status());
 			assertThat(match.fullNameHtml()).containsIgnoringCase("OMAR");
 		}
 
 		// Search list records for "terminated"
-		SearchService.SearchResponse terminatedResponse = searchService.searchEntries("terminated");
+		SearchResponseDto terminatedResponse = searchService.searchEntries("terminated");
 		System.out.println("SearchService for 'terminated' returned: " + terminatedResponse.totalCount() + " matches.");
 		assertThat(terminatedResponse.results()).isNotEmpty();
-		for (SearchService.SearchHit match : terminatedResponse.results()) {
+		for (SearchHitDto match : terminatedResponse.results()) {
 			assertThat(match.status()).isEqualTo("terminated");
 		}
 	}

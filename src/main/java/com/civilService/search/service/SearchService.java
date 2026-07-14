@@ -1,5 +1,8 @@
 package com.civilService.search.service;
 
+import com.civilService.search.dto.SearchHitDto;
+import com.civilService.search.dto.SearchResponseDto;
+import com.civilService.search.dto.CertificationEstimationDto;
 import com.civilService.search.entity.CivilServiceListRecord;
 import com.civilService.search.entity.CivilServiceRecord;
 import lombok.extern.slf4j.Slf4j;
@@ -42,9 +45,13 @@ public class SearchService {
     /**
      * Search for candidate entries matching the query string in Lucene.
      */
-    public SearchResponse searchEntries(String query) {
+    public SearchResponseDto searchEntries(String query) {
+        return searchEntries(query, 1, Integer.MAX_VALUE);
+    }
+
+    public SearchResponseDto searchEntries(String query, int page, int pageSize) {
         if (query == null || query.isBlank()) {
-            return new SearchResponse(Collections.emptyList(), 0, 0);
+            return new SearchResponseDto(Collections.emptyList(), 0, 0, 1, 1);
         }
 
         long start = System.currentTimeMillis();
@@ -104,31 +111,43 @@ public class SearchService {
             return 0;
         });
 
-        List<SearchHit> results = new ArrayList<>();
-        for (ScoredHit hit : scored) {
-            CivilServiceListRecord record = hit.entry();
-            results.add(new SearchHit(
-                    record.getId(),
-                    highlight(buildFullName(record), parsed.positiveTerms()),
-                    highlight(record.getListTitleDesc(), parsed.positiveTerms()),
-                    highlight(record.getListAgencyDesc(), parsed.positiveTerms()),
-                    record.getExamNo(),
-                    record.getListNo() != null ? record.getListNo().toString() : "",
-                    record.getStatus(),
-                    hit.score(),
-                    false, // isCertified
-                    null,  // certifiedAgency
-                    null,  // certifiedDate
-                    null,  // formattedCertifiedDate
-                    false, // isReached
-                    null,  // latestReachAgency
-                    null,  // latestReachDate
-                    null   // formattedLatestReachDate
-            ));
+        int totalCount = scored.size();
+        int totalPages = (int) Math.ceil((double) totalCount / pageSize);
+        if (totalPages < 1) {
+            totalPages = 1;
+        }
+
+        int fromIndex = (page - 1) * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, totalCount);
+
+        List<SearchHitDto> results = new ArrayList<>();
+        if (fromIndex < totalCount && fromIndex >= 0) {
+            List<ScoredHit> sublist = scored.subList(fromIndex, toIndex);
+            for (ScoredHit hit : sublist) {
+                CivilServiceListRecord record = hit.entry();
+                results.add(new SearchHitDto(
+                        record.getId(),
+                        highlight(buildFullName(record), parsed.positiveTerms()),
+                        highlight(record.getListTitleDesc(), parsed.positiveTerms()),
+                        highlight(record.getListAgencyDesc(), parsed.positiveTerms()),
+                        record.getExamNo(),
+                        record.getListNo() != null ? record.getListNo().stripTrailingZeros().toPlainString() : "",
+                        record.getStatus(),
+                        hit.score(),
+                        false, // isCertified
+                        null,  // certifiedAgency
+                        null,  // certifiedDate
+                        null,  // formattedCertifiedDate
+                        false, // isReached
+                        null,  // latestReachAgency
+                        null,  // latestReachDate
+                        null   // formattedLatestReachDate
+                ));
+            }
         }
 
         long took = System.currentTimeMillis() - start;
-        return new SearchResponse(results, results.size(), took);
+        return new SearchResponseDto(results, totalCount, took, page, totalPages);
     }
 
     public CivilServiceListRecord getRecordById(Long id) {
@@ -284,32 +303,12 @@ public class SearchService {
     private record Range(int start, int end) {
     }
 
-    public record SearchHit(
-            Long id,
-            String fullNameHtml,
-            String titleHtml,
-            String agencyHtml,
-            String examNo,
-            String listNo,
-            String status,
-            int score,
-            boolean isCertified,
-            String certifiedAgency,
-            LocalDateTime certifiedDate,
-            String formattedCertifiedDate,
-            boolean isReached,
-            String latestReachAgency,
-            LocalDateTime latestReachDate,
-            String formattedLatestReachDate
-    ) {}
-
-    public record SearchResponse(List<SearchHit> results, int totalCount, long tookMs) {
-    }
+    // SearchHit and SearchResponse have been moved to DTO package classes
 
     /**
      * Resolves certification or estimation using live SODA3 API records retrieved dynamically.
      */
-    public CertificationEstimation getCertificationOrEstimation(CivilServiceListRecord record) {
+    public CertificationEstimationDto getCertificationOrEstimation(CivilServiceListRecord record) {
         if (record == null) {
             return null;
         }
@@ -350,6 +349,57 @@ public class SearchService {
             }
         }
 
+        // Calculate historical metrics if examCerts is not empty
+        BigDecimal maxReachNumber = BigDecimal.ZERO;
+        BigDecimal minReachNumber = null;
+        LocalDateTime firstRequestedDate = null;
+        LocalDateTime lastRequestedDate = null;
+
+        for (CivilServiceRecord cert : examCerts) {
+            if (cert.getListNo() != null) {
+                if (cert.getListNo().compareTo(maxReachNumber) > 0) {
+                    maxReachNumber = cert.getListNo();
+                }
+                if (minReachNumber == null || cert.getListNo().compareTo(minReachNumber) < 0) {
+                    minReachNumber = cert.getListNo();
+                }
+            }
+            if (cert.getRequestDate() != null) {
+                if (firstRequestedDate == null || cert.getRequestDate().isBefore(firstRequestedDate)) {
+                    firstRequestedDate = cert.getRequestDate();
+                }
+                if (lastRequestedDate == null || cert.getRequestDate().isAfter(lastRequestedDate)) {
+                    lastRequestedDate = cert.getRequestDate();
+                }
+            }
+        }
+
+        double ratePerDay = 0.0;
+        if (firstRequestedDate != null && lastRequestedDate != null) {
+            long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(firstRequestedDate, lastRequestedDate);
+            if (daysBetween <= 0) {
+                daysBetween = 1;
+            }
+            double ranksCovered = maxReachNumber.doubleValue() - (minReachNumber != null ? minReachNumber.doubleValue() : 0.0);
+            if (ranksCovered > 0) {
+                ratePerDay = ranksCovered / (double) daysBetween;
+            }
+        }
+
+        if (ratePerDay <= 0 && firstRequestedDate != null) {
+            long daysFromStart = java.time.temporal.ChronoUnit.DAYS.between(firstRequestedDate, LocalDateTime.now());
+            if (daysFromStart > 0) {
+                ratePerDay = maxReachNumber.doubleValue() / (double) daysFromStart;
+            }
+        }
+
+        String reachRateText = ratePerDay > 0 
+                ? String.format("%.1f ranks/year", ratePerDay * 365.0)
+                : "N/A (Insufficient speed data)";
+
+        // Check if list is expired
+        boolean isExpired = isListExpired(record);
+
         // 1. Search for an exact match in the filtered certification list
         Optional<CivilServiceRecord> exactMatch = examCerts.stream()
                 .filter(c -> c.getListNo() != null && c.getListNo().compareTo(record.getListNo()) == 0)
@@ -388,159 +438,161 @@ public class SearchService {
                 }
             }
 
-            return CertificationEstimation.builder()
-                    .hasCertificate(true)
-                    .certificate(cert)
-                    .isAppointed(isAppointed)
-                    .payrollRecord(payrollRecord)
-                    .build();
+            return CertificationEstimationDto.fromCertificate(
+                    cert, 
+                    isAppointed, 
+                    payrollRecord, 
+                    isExpired, 
+                    maxReachNumber, 
+                    firstRequestedDate, 
+                    lastRequestedDate, 
+                    reachRateText
+            );
         }
 
         // 2. Estimate reach details based on the exam's historical certifications
         if (examCerts.isEmpty()) {
-            return CertificationEstimation.builder()
-                    .hasCertificate(false)
-                    .estimationStatus("No historical certification data found for this exam number.")
-                    .isAppointed(isAppointed)
-                    .payrollRecord(payrollRecord)
-                    .build();
+            return CertificationEstimationDto.emptyEstimation("No historical certification data found for this exam number.", isAppointed, payrollRecord, isExpired);
         }
 
-        BigDecimal maxReachNumber = BigDecimal.ZERO;
-        LocalDateTime firstRequestedDate = null;
-        LocalDateTime lastRequestedDate = null;
-
-        // Collect valid data points for linear regression
-        record Point(double x, double y) {}
-        List<Point> dataPoints = new ArrayList<>();
-
-        // Find min/max request dates and max list number reached
-        for (CivilServiceRecord cert : examCerts) {
-            if (cert.getListNo() != null) {
-                if (cert.getListNo().compareTo(maxReachNumber) > 0) {
-                    maxReachNumber = cert.getListNo();
-                }
-            }
-            if (cert.getRequestDate() != null) {
-                if (firstRequestedDate == null || cert.getRequestDate().isBefore(firstRequestedDate)) {
-                    firstRequestedDate = cert.getRequestDate();
-                }
-                if (lastRequestedDate == null || cert.getRequestDate().isAfter(lastRequestedDate)) {
-                    lastRequestedDate = cert.getRequestDate();
-                }
-            }
+        if (minReachNumber == null) {
+            minReachNumber = BigDecimal.ZERO;
         }
 
-        // Second pass: compute days from firstRequestedDate for regression
-        if (firstRequestedDate != null) {
-            for (int i = 0; i < examCerts.size(); i++) {
-                CivilServiceRecord cert = examCerts.get(i);
-                if (cert.getListNo() != null && cert.getRequestDate() != null) {
-                    double x = (double) (i + 1);
-                    double y = java.time.temporal.ChronoUnit.DAYS.between(firstRequestedDate, cert.getRequestDate());
-                    dataPoints.add(new Point(x, y));
-                }
-            }
+        double candidateNo = record.getListNo() != null ? record.getListNo().doubleValue() : 0.0;
+        double maxReach = maxReachNumber.doubleValue();
+        double minReach = minReachNumber.doubleValue();
+
+        // Calculate progress percentage
+        double progressPercentage = 0.0;
+        if (candidateNo > 0) {
+            progressPercentage = (maxReach / candidateNo) * 100.0;
         }
+        if (progressPercentage > 100.0) progressPercentage = 100.0;
+        if (progressPercentage < 0.0) progressPercentage = 0.0;
+
+        // Calculate remaining ranks to reach
+        double remaining = candidateNo - maxReach;
+        if (remaining < 0) remaining = 0.0;
+        String remainingRanks = String.format("%.3f", remaining);
 
         Long estimatedDaysToReach = null;
-        String estimationStatus = "Insufficient data points for linear regression estimation.";
+        String estimationStatus = "Insufficient speed data for estimation.";
 
-        if (dataPoints.size() >= 2) {
-            double sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-            int n = dataPoints.size();
-            for (Point p : dataPoints) {
-                sumX += p.x;
-                sumY += p.y;
-                sumXY += p.x * p.y;
-                sumXX += p.x * p.x;
+        if (ratePerDay > 0) {
+            double remainingDays = remaining / ratePerDay;
+            long daysSinceLastRequest = 0;
+            if (lastRequestedDate != null) {
+                daysSinceLastRequest = java.time.temporal.ChronoUnit.DAYS.between(lastRequestedDate, LocalDateTime.now());
             }
-            double denominator = (n * sumXX) - (sumX * sumX);
-            if (Math.abs(denominator) > 1e-6) {
-                double m = ((n * sumXY) - (sumX * sumY)) / denominator;
-                double c = (sumY - (m * sumX)) / n;
+            long estDaysFromToday = Math.round(remainingDays - daysSinceLastRequest);
 
-                double candidateX = record.getListNo() != null ? record.getListNo().doubleValue() : 0.0;
-                if (maxReachNumber.compareTo(BigDecimal.ZERO) > 0 && !examCerts.isEmpty()) {
-                    candidateX = candidateX * ((double) examCerts.size() / maxReachNumber.doubleValue());
-                }
-                double estDaysFromStart = (m * candidateX) + c;
-
-                long daysStartToToday = java.time.temporal.ChronoUnit.DAYS.between(firstRequestedDate, LocalDateTime.now());
-                long estDaysFromToday = Math.round(estDaysFromStart - daysStartToToday);
-
-                // If candidate has not been reached yet, but the estimate is <= 0,
-                // we fall back to a linear rate projection based on actual reached history.
+            if (estDaysFromToday <= 0) {
+                estimatedDaysToReach = 0L;
                 if (record.getListNo() != null && record.getListNo().compareTo(maxReachNumber) > 0) {
-                    if (estDaysFromToday <= 0) {
-                        BigDecimal minReachNumber = examCerts.get(0).getListNo() != null ? examCerts.get(0).getListNo() : BigDecimal.ZERO;
-                        double ranksCovered = maxReachNumber.doubleValue() - minReachNumber.doubleValue();
-                        long timeTaken = java.time.temporal.ChronoUnit.DAYS.between(firstRequestedDate, lastRequestedDate);
-                        if (timeTaken <= 0) {
-                            timeTaken = 1;
-                        }
-                        double rate = ranksCovered / timeTaken; // ranks per day
-                        if (rate > 0) {
-                            double remainingRanks = record.getListNo().doubleValue() - maxReachNumber.doubleValue();
-                            double remainingDays = remainingRanks / rate;
-                            long daysSinceLastRequest = java.time.temporal.ChronoUnit.DAYS.between(lastRequestedDate, LocalDateTime.now());
-                            estDaysFromToday = Math.round(remainingDays - daysSinceLastRequest);
-                        }
-                    }
-                }
-
-                if (estDaysFromToday <= 0) {
-                    estimatedDaysToReach = 0L;
-                    if (record.getListNo() != null && record.getListNo().compareTo(maxReachNumber) > 0) {
-                        estimationStatus = "Imminent (Soon)";
-                    } else {
-                        estimationStatus = "Imminent (Estimate has already passed)";
-                    }
+                    estimationStatus = "Imminent (Soon)";
                 } else {
-                    estimatedDaysToReach = estDaysFromToday;
-                    estimationStatus = estDaysFromToday + " days";
+                    estimationStatus = "Imminent (Estimate has already passed)";
                 }
+            } else {
+                estimatedDaysToReach = estDaysFromToday;
+                estimationStatus = estDaysFromToday + " days";
             }
         }
 
-        return CertificationEstimation.builder()
-                .hasCertificate(false)
-                .maxReachNumber(maxReachNumber)
-                .firstRequestedDate(firstRequestedDate)
-                .lastRequestedDate(lastRequestedDate)
-                .estimatedDaysToReach(estimatedDaysToReach)
-                .estimationStatus(estimationStatus)
-                .isAppointed(isAppointed)
-                .payrollRecord(payrollRecord)
-                .build();
+        return CertificationEstimationDto.fromEstimation(
+                maxReachNumber,
+                firstRequestedDate,
+                lastRequestedDate,
+                estimatedDaysToReach,
+                estimationStatus,
+                isAppointed,
+                payrollRecord,
+                progressPercentage,
+                remainingRanks,
+                reachRateText,
+                isExpired
+        );
     }
 
+    private boolean isListExpired(CivilServiceListRecord record) {
+        if (record == null) {
+            return false;
+        }
 
+        // 1. Status is terminated
+        if ("terminated".equalsIgnoreCase(record.getStatus())) {
+            return true;
+        }
+
+        // 2. Extension date check
+        LocalDateTime currentDate = LocalDateTime.now();
+        if (record.getExtensionDate() != null && !record.getExtensionDate().isBlank() && !"N/A".equalsIgnoreCase(record.getExtensionDate())) {
+            LocalDateTime extDate = parseDate(record.getExtensionDate());
+            if (extDate != null && currentDate.isAfter(extDate)) {
+                return true;
+            }
+        } else if (record.getEstablishedDate() != null) {
+            // 3. Established date + 4 years check
+            if (currentDate.isAfter(record.getEstablishedDate().plusYears(4))) {
+                return true;
+            }
+        }
+
+        // 4. Newer list published check
+        if (record.getListTitleDesc() != null && !record.getListTitleDesc().isBlank() && record.getEstablishedDate() != null) {
+            try (SearchSession session = searchMapping.createSession()) {
+                List<CivilServiceListRecord> sameTitleRecords = session.search(CivilServiceListRecord.class)
+                        .select(CivilServiceListRecord.class)
+                        .where(f -> f.match().field("listTitleDesc").matching(record.getListTitleDesc()))
+                        .fetchAllHits();
+                for (CivilServiceListRecord other : sameTitleRecords) {
+                    if (record.getListTitleCode() != null && record.getListTitleCode().equals(other.getListTitleCode())) {
+                        if (other.getEstablishedDate() != null && other.getEstablishedDate().isAfter(record.getEstablishedDate())) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error checking list expiration", e);
+            }
+        }
+
+        return false;
+    }
+
+    private LocalDateTime parseDate(String val) {
+        if (val == null || val.trim().isEmpty() || "N/A".equalsIgnoreCase(val)) {
+            return null;
+        }
+        val = val.trim();
+        try {
+            if (val.contains("/")) {
+                return java.time.LocalDate.parse(val, java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy")).atStartOfDay();
+            } else if (val.contains("T")) {
+                try {
+                    return LocalDateTime.parse(val, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                } catch (Exception e) {
+                    return java.time.ZonedDateTime.parse(val, java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME).toLocalDateTime();
+                }
+            } else {
+                return java.time.LocalDate.parse(val, java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")).atStartOfDay();
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     private boolean isMatchingExam(String certExam, String candidateExam) {
         if (certExam == null || candidateExam == null) {
             return false;
         }
         try {
-            return Integer.parseInt(certExam.trim()) == Integer.parseInt(candidateExam.trim());
+            int cExam = Integer.parseInt(certExam.trim());
+            int candExam = Integer.parseInt(candidateExam.trim());
+            return cExam == candExam;
         } catch (NumberFormatException e) {
             return certExam.trim().equalsIgnoreCase(candidateExam.trim());
         }
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
-    public static class CertificationEstimation {
-        private boolean hasCertificate;
-        private CivilServiceRecord certificate;
-        private BigDecimal maxReachNumber;
-        private LocalDateTime firstRequestedDate;
-        private LocalDateTime lastRequestedDate;
-        private Long estimatedDaysToReach;
-        private String estimationStatus;
-        private boolean isAppointed;
-        private com.civilService.search.service.CivilServiceSyncService.CivilListPayrollRecord payrollRecord;
     }
 }

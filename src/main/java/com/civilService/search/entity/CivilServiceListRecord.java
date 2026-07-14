@@ -40,7 +40,7 @@ public class CivilServiceListRecord {
     private String socrataId;
 
     @JsonProperty("exam_no")
-    @KeywordField(projectable = Projectable.YES)
+    @FullTextField(projectable = Projectable.YES)
     private String examNo;
 
     @JsonProperty("list_no")

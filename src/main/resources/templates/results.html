@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Results</title>
+    <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -40,6 +41,19 @@
                 Reached by [[${candidate.latestReachAgency}]] on [[${candidate.formattedLatestReachDate}]]
             </span>
         </div>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination" th:if="${totalPages > 1}">
+        <button th:if="${currentPage > 1}"
+                th:hx-get="@{/results(q=${q}, page=${currentPage - 1})}"
+                hx-swap="none"
+                hx-push-url="true">Previous</button>
+        <span>Page <strong th:text="${currentPage}">1</strong> of <strong th:text="${totalPages}">1</strong></span>
+        <button th:if="${currentPage < totalPages}"
+                th:hx-get="@{/results(q=${q}, page=${currentPage + 1})}"
+                hx-swap="none"
+                hx-push-url="true">Next</button>
     </div>
 </div>
 </body>
