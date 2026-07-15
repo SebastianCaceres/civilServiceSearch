@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Civil Service Search</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <!-- Load ALTCHA Web Component -->
+    <script async defer th:src="@{/webjars/altcha/dist/altcha.js}" type="module"></script>
+    <!-- Load HTMX -->
+    <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
 </head>
 <body>
 <div class="container" id="navbar-top">
@@ -23,6 +27,18 @@
         <div style="display: flex; flex-direction: column; gap: 0.4rem; width: 100%;">
             <label for="examOrTitle" style="font-weight: bold; font-size: 0.9rem; color: #333;">Exam Number or Job Title <span style="color: red;">*</span></label>
             <input id="examOrTitle" type="text" name="examOrTitle" th:value="${examOrTitle}" placeholder="e.g. 5054 or Accountant" required style="padding: 0.65rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; width: 100%; box-sizing: border-box;">
+        </div>
+
+        <!-- The ALTCHA CAPTCHA Widget -->
+        <div id="captcha-container"
+             th:hx-get="@{/captcha-fragment}"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             style="width: 100%; box-sizing: border-box; margin: 0.5rem 0;">
+
+            <div style="padding: 1rem; text-align: center; color: #666; background: #f9f9f9; border-radius: 4px; border: 1px dashed #ccc;">
+                Loading security check...
+            </div>
         </div>
         <button type="submit" style="padding: 0.75rem; background: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; width: 100%; box-sizing: border-box;">
             Search

@@ -59,7 +59,7 @@ class ApiControllerTests {
         when(searchService.searchEntries(eq("kar por"), eq(1), eq(20)))
                 .thenReturn(new SearchResponseDto(List.of(hit), 1, 12, 1, 1));
 
-        mockMvc.perform(get("/results").param("q", "kar por"))
+        mockMvc.perform(get("/results").param("q", "kar por").sessionAttr("altchaVerified", true))
                 .andExpect(status().isOk())
                 .andExpect(view().name("results"))
                 .andExpect(model().attribute("q", "kar por"))
@@ -107,5 +107,53 @@ class ApiControllerTests {
                 .andExpect(view().name("record :: details-fragments"))
                 .andExpect(model().attributeExists("entry"))
                 .andExpect(model().attributeExists("estimation"));
+    }
+
+    @Test
+    void resultsPageWithoutAltchaFailsVerification() throws Exception {
+        mockMvc.perform(get("/results")
+                        .param("fullName", "John Doe")
+                        .param("examOrTitle", "5054"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("search"))
+                .andExpect(model().attributeExists("error"))
+                .andExpect(model().attribute("fullName", "John Doe"))
+                .andExpect(model().attribute("examOrTitle", "5054"));
+    }
+
+    @Test
+    void resultsPageWithSessionVerifiedBypassesVerification() throws Exception {
+        SearchHitDto hit = new SearchHitDto(
+                42L, "John Doe", "Accountant", "OPEN COMPETITIVE", "5054", "100.000",
+                "active", 1, false, null, null, null, false, null, null, null
+        );
+        when(searchService.searchEntries(eq("John Doe"), eq("5054"), eq(1), eq(20)))
+                .thenReturn(new SearchResponseDto(List.of(hit), 1, 10, 1, 1));
+
+        mockMvc.perform(get("/results")
+                        .param("fullName", "John Doe")
+                        .param("examOrTitle", "5054")
+                        .sessionAttr("altchaVerified", true))
+                .andExpect(status().isOk())
+                .andExpect(view().name("results"))
+                .andExpect(model().attribute("fullName", "John Doe"))
+                .andExpect(model().attribute("examOrTitle", "5054"))
+                .andExpect(model().attributeExists("results"));
+    }
+
+    @Test
+    void verifyCaptchaWithEmptyPayloadReturnsError() throws Exception {
+        mockMvc.perform(get("/verify")
+                        .param("altcha", ""))
+                .andExpect(status().isOk())
+                .andExpect(view().name("fragments :: captcha-missing"));
+    }
+
+    @Test
+    void verifyCaptchaWithInvalidPayloadReturnsVerificationFailed() throws Exception {
+        mockMvc.perform(get("/verify")
+                        .param("altcha", "invalidBase64PayloadString"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("fragments :: captcha-error"));
     }
 }

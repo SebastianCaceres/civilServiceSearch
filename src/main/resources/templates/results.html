@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Results</title>
-    <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
-<p th:if="${!isHtmx}">
+<p>
     <a th:href="@{/(fullName=${fullName}, examOrTitle=${examOrTitle})}" style="display: inline-block; margin-bottom: 1rem; padding: 0.5rem 1rem; background: #fafafa; border: 1px solid #ccc; border-radius: 4px; color: #1a0dab; text-decoration: none; font-size: 0.95rem; transition: background 0.2s;">&larr; Back to search</a>
 </p>
 
-<div id="search-results" th:fragment="results-list" th:attr="hx-swap-oob=${isHtmx} ? 'true' : null">
+<div id="search-results">
     <div class="meta" th:if="${(fullName != null and !fullName.isBlank()) or (examOrTitle != null and !examOrTitle.isBlank()) or (q != null and !q.isBlank())}">
         About <strong th:text="${resultCount}">0</strong> results in <strong th:text="${searchMs}">0</strong> ms
     </div>
@@ -45,15 +44,13 @@
 
     <!-- Pagination Controls -->
     <div class="pagination" th:if="${totalPages > 1}">
-        <button th:if="${currentPage > 1}"
-                th:hx-get="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q}, page=${currentPage - 1})}"
-                hx-swap="none"
-                hx-push-url="true">Previous</button>
+        <a th:if="${currentPage > 1}"
+           th:href="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q}, page=${currentPage - 1})}"
+           class="btn-pagination">Previous</a>
         <span>Page <strong th:text="${currentPage}">1</strong> of <strong th:text="${totalPages}">1</strong></span>
-        <button th:if="${currentPage < totalPages}"
-                th:hx-get="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q}, page=${currentPage + 1})}"
-                hx-swap="none"
-                hx-push-url="true">Next</button>
+        <a th:if="${currentPage < totalPages}"
+           th:href="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q}, page=${currentPage + 1})}"
+           class="btn-pagination">Next</a>
     </div>
 </div>
 </body>
