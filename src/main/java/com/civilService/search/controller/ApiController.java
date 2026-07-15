@@ -25,21 +25,47 @@ public class ApiController {
     }
 
     @GetMapping({"/", "/search"})
-    public String searchPage() {
+    public String searchPage(@RequestParam(defaultValue = "") String fullName,
+                             @RequestParam(defaultValue = "") String examOrTitle,
+                             Model model) {
+        model.addAttribute("fullName", fullName);
+        model.addAttribute("examOrTitle", examOrTitle);
         return "search";
     }
 
     @GetMapping(value = "/results", headers = "!HX-Request")
     public String resultsPage(@RequestParam(defaultValue = "") String q,
+                              @RequestParam(defaultValue = "") String fullName,
+                              @RequestParam(defaultValue = "") String examOrTitle,
                               @RequestParam(defaultValue = "1") int page,
                               Model model) {
-        processPageResults(q, page, model, false);
+        if (!isValidSearch(q, fullName, examOrTitle)) {
+            model.addAttribute("error", "Full Name and Exam Number or Job Title are required.");
+            model.addAttribute("fullName", fullName);
+            model.addAttribute("examOrTitle", examOrTitle);
+            return "search";
+        }
+        processPageResults(q, fullName, examOrTitle, page, model, false);
         return "results";
     }
 
-    private void processPageResults(String q, int page, Model model, boolean isHtmx) {
-        SearchResponseDto response = searchService.searchEntries(q, page, 20);
+    private boolean isValidSearch(String q, String fullName, String examOrTitle) {
+        if (q != null && !q.isBlank()) {
+            return true;
+        }
+        return fullName != null && !fullName.isBlank() && examOrTitle != null && !examOrTitle.isBlank();
+    }
+
+    private void processPageResults(String q, String fullName, String examOrTitle, int page, Model model, boolean isHtmx) {
+        SearchResponseDto response;
+        if ((fullName != null && !fullName.isBlank()) || (examOrTitle != null && !examOrTitle.isBlank())) {
+            response = searchService.searchEntries(fullName, examOrTitle, page, 20);
+        } else {
+            response = searchService.searchEntries(q, page, 20);
+        }
         model.addAttribute("q", q);
+        model.addAttribute("fullName", fullName);
+        model.addAttribute("examOrTitle", examOrTitle);
         model.addAttribute("results", response.results());
         model.addAttribute("resultCount", response.totalCount());
         model.addAttribute("searchMs", response.tookMs());
@@ -51,18 +77,32 @@ public class ApiController {
     @GetMapping("/results")
     @HxRequest
     public String resultsPageHtmx(@RequestParam(defaultValue = "") String q,
+                                  @RequestParam(defaultValue = "") String fullName,
+                                  @RequestParam(defaultValue = "") String examOrTitle,
                                   @RequestParam(defaultValue = "1") int page,
                                   Model model) {
-        processPageResults(q, page, model, true);
+        if (!isValidSearch(q, fullName, examOrTitle)) {
+            model.addAttribute("error", "Full Name and Exam Number or Job Title are required.");
+            model.addAttribute("fullName", fullName);
+            model.addAttribute("examOrTitle", examOrTitle);
+            return "search";
+        }
+        processPageResults(q, fullName, examOrTitle, page, model, true);
         return "results :: results-list";
     }
 
     @GetMapping("/record/{id}")
-    public String recordPage(@PathVariable long id, @RequestParam(defaultValue = "") String q, Model model) {
+    public String recordPage(@PathVariable long id,
+                             @RequestParam(defaultValue = "") String q,
+                             @RequestParam(defaultValue = "") String fullName,
+                             @RequestParam(defaultValue = "") String examOrTitle,
+                             Model model) {
         try {
             com.civilService.search.entity.CivilServiceListRecord record = searchService.getRecordById(id);
             model.addAttribute("entry", CivilServiceListRecordDto.fromEntity(record));
             model.addAttribute("q", q);
+            model.addAttribute("fullName", fullName);
+            model.addAttribute("examOrTitle", examOrTitle);
             return "record";
         } catch (NoSuchElementException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage(), ex);

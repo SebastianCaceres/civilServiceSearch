@@ -8,20 +8,20 @@
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
-<div class="top">
-    <div th:replace="~{fragments :: searchBar(${q})}"></div>
-</div>
+<p th:if="${!isHtmx}">
+    <a th:href="@{/(fullName=${fullName}, examOrTitle=${examOrTitle})}" style="display: inline-block; margin-bottom: 1rem; padding: 0.5rem 1rem; background: #fafafa; border: 1px solid #ccc; border-radius: 4px; color: #1a0dab; text-decoration: none; font-size: 0.95rem; transition: background 0.2s;">&larr; Back to search</a>
+</p>
 
 <div id="search-results" th:fragment="results-list" th:attr="hx-swap-oob=${isHtmx} ? 'true' : null">
-    <div class="meta" th:if="${q != null and !q.isBlank()}">
+    <div class="meta" th:if="${(fullName != null and !fullName.isBlank()) or (examOrTitle != null and !examOrTitle.isBlank()) or (q != null and !q.isBlank())}">
         About <strong th:text="${resultCount}">0</strong> results in <strong th:text="${searchMs}">0</strong> ms
     </div>
 
-    <div th:if="${q == null or q.isBlank()}">Enter a search query to see results.</div>
-    <div th:if="${q != null and !q.isBlank() and #lists.isEmpty(results)}">No results found.</div>
+    <div th:if="${(fullName == null or fullName.isBlank()) and (examOrTitle == null or examOrTitle.isBlank()) and (q == null or q.isBlank())}">Enter search criteria to see results.</div>
+    <div th:if="${((fullName != null and !fullName.isBlank()) or (examOrTitle != null and !examOrTitle.isBlank()) or (q != null and !q.isBlank())) and #lists.isEmpty(results)}">No results found.</div>
 
     <div th:each="candidate : ${results}" class="result">
-        <a class="title-link" th:href="@{/record/{id}(id=${candidate.id}, q=${q})}" th:utext="${candidate.fullNameHtml}"></a>
+        <a class="title-link" th:href="@{/record/{id}(id=${candidate.id}, q=${q}, fullName=${fullName}, examOrTitle=${examOrTitle})}" th:utext="${candidate.fullNameHtml}"></a>
         <div class="subtitle" th:utext="${candidate.titleHtml}"></div>
         <div class="agency" th:utext="${candidate.agencyHtml}"></div>
         <div class="details">
@@ -46,12 +46,12 @@
     <!-- Pagination Controls -->
     <div class="pagination" th:if="${totalPages > 1}">
         <button th:if="${currentPage > 1}"
-                th:hx-get="@{/results(q=${q}, page=${currentPage - 1})}"
+                th:hx-get="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q}, page=${currentPage - 1})}"
                 hx-swap="none"
                 hx-push-url="true">Previous</button>
         <span>Page <strong th:text="${currentPage}">1</strong> of <strong th:text="${totalPages}">1</strong></span>
         <button th:if="${currentPage < totalPages}"
-                th:hx-get="@{/results(q=${q}, page=${currentPage + 1})}"
+                th:hx-get="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q}, page=${currentPage + 1})}"
                 hx-swap="none"
                 hx-push-url="true">Next</button>
     </div>

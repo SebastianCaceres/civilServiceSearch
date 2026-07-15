@@ -19,19 +19,7 @@
         </nav>
     </header>
 
-    <!-- Search Bar Fragment -->
-    <div th:fragment="searchBar(q)">
-        <label>
-            <input id="search-query" type="text" name="q" th:value="${q}" placeholder="Search names/titles (supports &quot;quotes&quot; and -exclude)" autofocus
-                   th:hx-get="@{/results}" hx-trigger="keyup[key=='Enter']" hx-swap="none" hx-push-url="true" hx-indicator="#htmx-indicator"
-                   hx-on::after-request="document.getElementById('navbar-top')?.classList.add('has-results'); document.getElementById('search-container')?.classList.add('has-results');">
-        </label>
-        <button th:hx-get="@{/results}" hx-include="#search-query" hx-swap="none" hx-push-url="true" hx-indicator="#htmx-indicator"
-                hx-on::after-request="document.getElementById('navbar-top')?.classList.add('has-results'); document.getElementById('search-container')?.classList.add('has-results');">
-            <span id="htmx-indicator" class="htmx-indicator"><span class="spinner"></span></span>Search
-        </button>
-        <p class="hint">Google-like tips: use quoted phrases and <code>-word</code> to exclude terms.</p>
-    </div>
+
 
     <!-- Footer Fragment -->
     <footer th:fragment="footer" class="text-center py-4 text-secondary small mt-auto border-top bg-white">

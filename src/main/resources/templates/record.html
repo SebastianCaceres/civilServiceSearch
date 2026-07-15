@@ -9,7 +9,7 @@
 </head>
 <body>
 <p>
-    <a th:href="@{/results(q=${q})}">Back to results</a>
+    <a th:href="@{/results(fullName=${fullName}, examOrTitle=${examOrTitle}, q=${q})}">Back to results</a>
 </p>
 
 <h1 th:text="${entry.fullName}">Record</h1>

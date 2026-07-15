@@ -4,15 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Civil Service Search</title>
-    <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
 <div class="container" id="navbar-top">
     <h1>Civil Service Search</h1>
-    <div th:replace="~{fragments :: searchBar(null)}"></div>
+    
+    <div th:if="${error}" style="background-color: #f8d7da; color: #721c24; padding: 0.75rem; border: 1px solid #f5c6cb; border-radius: 4px; margin: 0 auto 1rem auto; max-width: 500px; text-align: left; box-sizing: border-box; width: 100%;">
+        <span th:text="${error}"></span>
+    </div>
+    
+    <form id="search-form" th:action="@{/results}" method="GET" 
+          style="display: flex; flex-direction: column; gap: 1rem; max-width: 500px; margin: 0 auto; text-align: left; background: #fff; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05); width: 100%; box-sizing: border-box;">
+        <div style="display: flex; flex-direction: column; gap: 0.4rem; width: 100%;">
+            <label for="fullName" style="font-weight: bold; font-size: 0.9rem; color: #333;">Full Name <span style="color: red;">*</span></label>
+            <input id="fullName" type="text" name="fullName" th:value="${fullName}" placeholder="e.g. John Doe" autofocus required style="padding: 0.65rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; width: 100%; box-sizing: border-box;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.4rem; width: 100%;">
+            <label for="examOrTitle" style="font-weight: bold; font-size: 0.9rem; color: #333;">Exam Number or Job Title <span style="color: red;">*</span></label>
+            <input id="examOrTitle" type="text" name="examOrTitle" th:value="${examOrTitle}" placeholder="e.g. 5054 or Accountant" required style="padding: 0.65rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; width: 100%; box-sizing: border-box;">
+        </div>
+        <button type="submit" style="padding: 0.75rem; background: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; width: 100%; box-sizing: border-box;">
+            Search
+        </button>
+    </form>
 </div>
-
-<div id="search-results"></div>
 </body>
 </html>

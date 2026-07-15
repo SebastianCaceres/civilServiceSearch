@@ -150,6 +150,107 @@ public class SearchService {
         return new SearchResponseDto(results, totalCount, took, page, totalPages);
     }
 
+    public SearchResponseDto searchEntries(String fullName, String examOrTitle, int page, int pageSize) {
+        if ((fullName == null || fullName.isBlank()) && (examOrTitle == null || examOrTitle.isBlank())) {
+            return new SearchResponseDto(Collections.emptyList(), 0, 0, 1, 1);
+        }
+
+        long start = System.currentTimeMillis();
+
+        // Match candidate list records using Lucene
+        List<CivilServiceListRecord> luceneHits = new ArrayList<>();
+        try (SearchSession session = searchMapping.createSession()) {
+            List<CivilServiceListRecord> searchResult = session.search(CivilServiceListRecord.class)
+                    .select(CivilServiceListRecord.class)
+                    .where(f -> f.bool(b -> {
+                        // Match fullName terms against firstName and lastName
+                        if (fullName != null && !fullName.isBlank()) {
+                            String[] nameTerms = fullName.trim().toLowerCase().split("\\s+");
+                            for (String term : nameTerms) {
+                                b.must(f.or(
+                                    f.match().field("firstName").matching(term),
+                                    f.match().field("lastName").matching(term)
+                                ));
+                            }
+                        }
+                        
+                        // Match examOrTitle against examNo or listTitleDesc
+                        if (examOrTitle != null && !examOrTitle.isBlank()) {
+                            b.must(f.or(
+                                f.match().field("examNo").matching(examOrTitle.trim()),
+                                f.match().field("listTitleDesc").matching(examOrTitle.trim())
+                            ));
+                        }
+                    }))
+                    .fetchAllHits();
+            luceneHits.addAll(searchResult);
+        } catch (Exception e) {
+            log.error("Error running Lucene structured search query", e);
+        }
+
+        // Build positive terms parsed query for scoring & highlighting
+        StringBuilder sb = new StringBuilder();
+        if (fullName != null && !fullName.isBlank()) sb.append(fullName).append(" ");
+        if (examOrTitle != null && !examOrTitle.isBlank()) sb.append(examOrTitle).append(" ");
+        ParsedQuery parsed = parseQuery(sb.toString());
+
+        List<ScoredHit> scored = new ArrayList<>();
+        for (CivilServiceListRecord record : luceneHits) {
+            int score = scoreRecord(record, parsed);
+            if (score > 0) {
+                scored.add(new ScoredHit(record, score));
+            }
+        }
+
+        // Sort by score descending, then by list_no ascending
+        scored.sort((a, b) -> {
+            int cmp = Integer.compare(b.score(), a.score());
+            if (cmp != 0) return cmp;
+            if (a.entry().getListNo() != null && b.entry().getListNo() != null) {
+                return a.entry().getListNo().compareTo(b.entry().getListNo());
+            }
+            return 0;
+        });
+
+        int totalCount = scored.size();
+        int totalPages = (int) Math.ceil((double) totalCount / pageSize);
+        if (totalPages < 1) {
+            totalPages = 1;
+        }
+
+        int fromIndex = (page - 1) * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, totalCount);
+
+        List<SearchHitDto> results = new ArrayList<>();
+        if (fromIndex < totalCount && fromIndex >= 0) {
+            List<ScoredHit> sublist = scored.subList(fromIndex, toIndex);
+            for (ScoredHit hit : sublist) {
+                CivilServiceListRecord record = hit.entry();
+                results.add(new SearchHitDto(
+                        record.getId(),
+                        highlight(buildFullName(record), parsed.positiveTerms()),
+                        highlight(record.getListTitleDesc(), parsed.positiveTerms()),
+                        highlight(record.getListAgencyDesc(), parsed.positiveTerms()),
+                        record.getExamNo(),
+                        record.getListNo() != null ? record.getListNo().stripTrailingZeros().toPlainString() : "",
+                        record.getStatus(),
+                        hit.score(),
+                        false, // isCertified
+                        null,  // certifiedAgency
+                        null,  // certifiedDate
+                        null,  // formattedCertifiedDate
+                        false, // isReached
+                        null,  // latestReachAgency
+                        null,  // latestReachDate
+                        null   // formattedLatestReachDate
+                ));
+            }
+        }
+
+        long took = System.currentTimeMillis() - start;
+        return new SearchResponseDto(results, totalCount, took, page, totalPages);
+    }
+
     public CivilServiceListRecord getRecordById(Long id) {
         try (SearchSession session = searchMapping.createSession()) {
             return session.search(CivilServiceListRecord.class)

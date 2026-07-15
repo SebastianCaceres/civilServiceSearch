@@ -100,8 +100,10 @@ public class CivilServiceListSyncService {
                             .fetchTotalHitCount();
                 }
 
+                log.info("Dataset ID: {} | localMetadata: {} | localCount: {}", datasetId, localMetadata, localCount);
                 if (localCount > 0 && localMetadata != null) {
                     Long localTimestamp = localMetadata.getLastSyncedRowsUpdatedAt();
+                    log.info("Dataset ID: {} | localTimestamp: {} | remoteTimestamp: {}", datasetId, localTimestamp, remoteTimestamp);
                     if (localTimestamp != null && remoteTimestamp <= localTimestamp) {
                         log.info("Dataset {} has not been updated since last sync (local: {}, remote: {}) and database has records. Skipping synchronization.",
                                 datasetId, localTimestamp, remoteTimestamp);
@@ -193,6 +195,13 @@ public class CivilServiceListSyncService {
             // 3. Save the new remote timestamp
             if (remoteTimestamp != null) {
                 try (SearchSession session = searchMapping.createSession()) {
+                    List<SyncMetadata> existing = session.search(SyncMetadata.class)
+                            .select(SyncMetadata.class)
+                            .where(f -> f.id().matching(datasetId))
+                            .fetchAllHits();
+                    for (SyncMetadata meta : existing) {
+                        session.indexingPlan().delete(meta);
+                    }
                     session.indexingPlan().add(new SyncMetadata(datasetId, remoteTimestamp));
                 }
             }
