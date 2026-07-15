@@ -405,43 +405,10 @@ public class SearchService {
                 .filter(c -> c.getListNo() != null && c.getListNo().compareTo(record.getListNo()) == 0)
                 .findFirst();
 
-        boolean isAppointed = false;
-        com.civilService.search.service.CivilServiceSyncService.CivilListPayrollRecord payrollRecord = null;
-
         if (exactMatch.isPresent()) {
             CivilServiceRecord cert = exactMatch.get();
-            LocalDateTime certDate = cert.getCertDate();
-            String certAgencyCode = cert.getListAgencyCode(); // Use agency code from the certification!
-
-            if (certAgencyCode != null && certDate != null) {
-                // Fetch live payroll records from ye3c-m4ga on-demand using certification agency code
-                List<com.civilService.search.service.CivilServiceSyncService.CivilListPayrollRecord> payroll = syncService.fetchPayrollRecords(
-                        certAgencyCode,
-                        record.getFirstName(),
-                        record.getMi(),
-                        record.getLastName()
-                );
-
-                if (payroll != null) {
-                    for (com.civilService.search.service.CivilServiceSyncService.CivilListPayrollRecord pr : payroll) {
-                        try {
-                            int pYear = Integer.parseInt(pr.getCalendarYear());
-                            if (certDate.getYear() < pYear) {
-                                isAppointed = true;
-                                payrollRecord = pr;
-                                break;
-                            }
-                        } catch (NumberFormatException e) {
-                            // ignore
-                        }
-                    }
-                }
-            }
-
             return CertificationEstimationDto.fromCertificate(
                     cert, 
-                    isAppointed, 
-                    payrollRecord, 
                     isExpired, 
                     maxReachNumber, 
                     firstRequestedDate, 
@@ -452,7 +419,7 @@ public class SearchService {
 
         // 2. Estimate reach details based on the exam's historical certifications
         if (examCerts.isEmpty()) {
-            return CertificationEstimationDto.emptyEstimation("No historical certification data found for this exam number.", isAppointed, payrollRecord, isExpired);
+            return CertificationEstimationDto.emptyEstimation("No historical certification data found for this exam number.", isExpired);
         }
 
         if (minReachNumber == null) {
@@ -506,8 +473,6 @@ public class SearchService {
                 lastRequestedDate,
                 estimatedDaysToReach,
                 estimationStatus,
-                isAppointed,
-                payrollRecord,
                 progressPercentage,
                 remainingRanks,
                 reachRateText,
@@ -518,11 +483,6 @@ public class SearchService {
     private boolean isListExpired(CivilServiceListRecord record) {
         if (record == null) {
             return false;
-        }
-
-        // 1. Status is terminated
-        if ("terminated".equalsIgnoreCase(record.getStatus())) {
-            return true;
         }
 
         // 2. Extension date check

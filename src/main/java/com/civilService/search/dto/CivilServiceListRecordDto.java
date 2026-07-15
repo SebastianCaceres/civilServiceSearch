@@ -30,9 +30,20 @@ public class CivilServiceListRecordDto {
     private String parentLgyCredit;
     private String siblingLgyCredit;
     private String residencyCredit;
+    private String status;
 
     public static CivilServiceListRecordDto fromEntity(CivilServiceListRecord record) {
         if (record == null) return null;
+        
+        String displayStatus = record.getStatus();
+        if ("active".equalsIgnoreCase(displayStatus)) {
+            displayStatus = "Active";
+        } else if ("terminated".equalsIgnoreCase(displayStatus)) {
+            displayStatus = "Terminated";
+        } else if (displayStatus != null && !displayStatus.isEmpty()) {
+            displayStatus = Character.toUpperCase(displayStatus.charAt(0)) + displayStatus.substring(1).toLowerCase();
+        }
+
         return CivilServiceListRecordDto.builder()
                 .id(record.getId())
                 .examNo(record.getExamNo())
@@ -55,6 +66,7 @@ public class CivilServiceListRecordDto {
                 .parentLgyCredit(record.getParentLgyCredit())
                 .siblingLgyCredit(record.getSiblingLgyCredit())
                 .residencyCredit(record.getResidencyCredit())
+                .status(displayStatus)
                 .build();
     }
 

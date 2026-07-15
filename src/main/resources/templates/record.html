@@ -36,22 +36,19 @@
     <tr><th>Parent Lgy Credit</th><td th:text="${entry.parentLgyCredit}"></td></tr>
     <tr><th>Sibling Lgy Credit</th><td th:text="${entry.siblingLgyCredit}"></td></tr>
     <tr><th>Residency Credit</th><td th:text="${entry.residencyCredit}"></td></tr>
-    <tr id="status-row"><th>Status</th><td><span id="status-value" style="color: #666; font-style: italic;"><span class="spinner"></span>Verifying...</span></td></tr>
+    <tr><th>List Status</th><td th:text="${entry.status}"></td></tr>
 </table>
 
 <!-- HTMX Trigger: loads the lazy fragments on DOM content load inside the reach card -->
 <div th:hx-get="@{/record/{id}/details(id=${entry.id})}" hx-trigger="load" hx-target="#reach-details-content" hx-swap="innerHTML" style="display: none;"></div>
 
-<div class="card" id="payroll-info" style="display: none;">
-    <!-- Populated via HTMX OOB swap -->
-</div>
 
 <div class="card" id="certificate-info">
     <div class="card-title">Civil Service Reachable & Estimation</div>
     <div id="reach-details-content">
         <p style="color: #666; font-style: italic;">
             <span class="spinner"></span>
-            Querying NYC Open Data certifications and verifying appointment status...
+            Querying NYC Open Data certifications...
         </p>
     </div>
 </div>
@@ -59,7 +56,6 @@
 <div class="card" id="caveats-info" style="font-size: 0.85rem; color: #555; background: #fdfdfd; border-color: #eee; margin-bottom: 2rem; box-shadow: none;">
     <div class="card-title" style="font-size: 1.05rem; color: #666; border-bottom: 1px solid #fafafa; padding-bottom: 0.3rem;">Status & Estimation Caveats</div>
     <p><strong>Reachable:</strong> Indicates that the candidate’s rank was certified to an agency on a list. This means they were eligible to be considered for hiring, but does not guarantee they were selected.</p>
-    <p><strong>Appointed Status:</strong> Verified on-demand against the NYC Civil List payroll dataset. A candidate is flagged as <em>Appointed</em> if they appear on the city payroll for a calendar year after their list certification year. Payroll data updates annually and may experience lag.</p>
     <p><strong>Estimated Days to Reach:</strong> Timelines are calculated using a linear regression projection of historical agency request rates for this list. Actual reach times vary based on agency budgets, vacancies, and hiring freezes.</p>
 </div>
 
@@ -67,26 +63,6 @@
 <!-- Thymeleaf Fragments for HTMX OOB Swapping -->
 <!-- ========================================== -->
 <div th:fragment="details-fragments" th:if="${estimation != null}" style="display: none;">
-    <!-- 1. Status Row OOB Swap -->
-    <span id="status-value" hx-swap-oob="true"
-          th:text="${estimation.statusText}"
-          th:style="${estimation.statusStyle}">
-    </span>
-
-    <!-- 2. Payroll Info Card OOB Swap -->
-    <div id="payroll-info" hx-swap-oob="true" class="card"
-         th:style="${estimation.payrollCardStyle}">
-        <div th:if="${estimation.isAppointed}">
-            <div class="card-title" style="color: #28a745;">Appointed Payroll Verification</div>
-            <p><strong>Appointment Status:</strong> <span style="color: green; font-weight: bold;">Appointed</span></p>
-            <p><strong>Agency Name:</strong> <span th:text="${estimation.payrollRecord.agencyName}"></span></p>
-            <p><strong>Agency Code (Dpt):</strong> <span th:text="${estimation.payrollRecord.dpt}"></span></p>
-            <p><strong>Title Code (Ttl):</strong> <span th:text="${estimation.payrollRecord.ttl}"></span></p>
-            <p><strong>Current Salary Rate:</strong> <span th:text="${estimation.payrollRecord.salRate}"></span></p>
-            <p><strong>Calendar Year:</strong> <span th:text="${estimation.payrollRecord.calendarYear}"></span></p>
-            <p><strong>Pay Class:</strong> <span th:text="${estimation.payrollRecord.pc}"></span></p>
-        </div>
-    </div>
 
     <!-- 3. Reachable Certificate & Estimation Card OOB Swap -->
     <div id="certificate-info" hx-swap-oob="true" class="card">
@@ -95,8 +71,8 @@
         <!-- If candidate has an exact certification record -->
         <div th:if="${estimation.hasCertificate}">
             <p><strong>Reachable Status:</strong> 
-                <span th:if="${estimation.isExpired && !estimation.isAppointed}" style="color: #d9534f; font-weight: bold;">Expired</span>
-                <span th:if="${!estimation.isExpired || estimation.isAppointed}" style="color: green; font-weight: bold;">Reachable</span>
+                <span th:if="${estimation.isExpired}" style="color: #d9534f; font-weight: bold;">Expired</span>
+                <span th:if="${!estimation.isExpired}" style="color: green; font-weight: bold;">Reachable</span>
             </p>
 
             <!-- 100% completed Progress Bar -->
@@ -126,7 +102,6 @@
             <p><strong>Cert Seq No:</strong> <span th:text="${estimation.certSeqNoText}"></span></p>
             <p><strong>Number Certified:</strong> <span th:text="${estimation.noCertifiedText}"></span></p>
             <p><strong>Number Requested:</strong> <span th:text="${estimation.noRequestedText}"></span></p>
-            <p><strong>Salary:</strong> <span th:text="${estimation.salaryText}"></span></p>
             <p><strong>Provisional Replacement:</strong> <span th:text="${estimation.provisionalReplacementText}"></span></p>
             <p><strong>Selection Description:</strong> <span th:text="${estimation.selCertDescriptionText}"></span></p>
         </div>

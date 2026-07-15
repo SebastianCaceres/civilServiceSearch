@@ -1,7 +1,6 @@
 package com.civilService.search.dto;
 
 import com.civilService.search.entity.CivilServiceRecord;
-import com.civilService.search.service.CivilServiceSyncService.CivilListPayrollRecord;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,18 +16,12 @@ public class CertificationEstimationDto {
     private LocalDateTime firstRequestedDate;
     private LocalDateTime lastRequestedDate;
     private Long estimatedDaysToReach;
-    private boolean isAppointed;
-    private CivilListPayrollRecord payrollRecord;
     private boolean isExpired;
 
     private double progressPercentage = 0.0;
     private String remainingRanks = "N/A";
     private String reachRateText = "N/A";
     private String progressBarColor = "#007bff";
-
-    private String statusText = "Not Appointed";
-    private String statusStyle = "color: black; font-weight: normal;";
-    private String payrollCardStyle = "display: none;";
 
     private String agencyText = "N/A";
     private String titleText = "N/A";
@@ -39,7 +32,6 @@ public class CertificationEstimationDto {
     private String certSeqNoText = "N/A";
     private String noCertifiedText = "N/A";
     private String noRequestedText = "N/A";
-    private String salaryText = "N/A";
     private String provisionalReplacementText = "N/A";
     private String selCertDescriptionText = "N/A";
 
@@ -64,8 +56,6 @@ public class CertificationEstimationDto {
 
     public static CertificationEstimationDto fromCertificate(
             CivilServiceRecord cert,
-            boolean isAppointed,
-            CivilListPayrollRecord payrollRecord,
             boolean isExpired,
             BigDecimal maxReachNumber,
             LocalDateTime firstRequestedDate,
@@ -74,8 +64,6 @@ public class CertificationEstimationDto {
         CertificationEstimationDto dto = new CertificationEstimationDto();
         dto.hasCertificate = true;
         dto.certificate = cert;
-        dto.isAppointed = isAppointed;
-        dto.payrollRecord = payrollRecord;
         dto.isExpired = isExpired;
         dto.maxReachNumber = maxReachNumber;
         dto.firstRequestedDate = firstRequestedDate;
@@ -85,20 +73,11 @@ public class CertificationEstimationDto {
         dto.remainingRanks = "0.000";
         dto.reachRateText = reachRateText != null ? reachRateText : "N/A (Already Reached)";
 
-        if (isAppointed) {
-            dto.statusText = "Appointed";
-            dto.statusStyle = "color: green; font-weight: bold;";
-            dto.progressBarColor = "#28a745";
-        } else if (isExpired) {
-            dto.statusText = "Expired";
-            dto.statusStyle = "color: #d9534f; font-weight: bold;";
+        if (isExpired) {
             dto.progressBarColor = "#d9534f";
         } else {
-            dto.statusText = "Not Appointed";
-            dto.statusStyle = "color: black; font-weight: normal;";
             dto.progressBarColor = "#28a745";
         }
-        dto.payrollCardStyle = isAppointed ? "display: block;" : "display: none;";
 
         dto.maxReachNumberText = formatOrNa(maxReachNumber);
         dto.firstRequestedDateText = formatOrNa(firstRequestedDate);
@@ -114,7 +93,6 @@ public class CertificationEstimationDto {
             dto.certSeqNoText = formatOrNa(cert.getCertSeqNo());
             dto.noCertifiedText = formatOrNa(cert.getNoCertified());
             dto.noRequestedText = formatOrNa(cert.getNoRequested());
-            dto.salaryText = cert.getSalary() != null ? "$" + cert.getSalary() : "N/A";
             dto.provisionalReplacementText = formatOrNa(cert.getProvisionalReplacement());
             dto.selCertDescriptionText = formatOrNa(cert.getSelCertDescription());
         }
@@ -127,8 +105,6 @@ public class CertificationEstimationDto {
             LocalDateTime lastRequestedDate,
             Long estimatedDaysToReach,
             String estimationStatus,
-            boolean isAppointed,
-            CivilListPayrollRecord payrollRecord,
             double progressPercentage,
             String remainingRanks,
             String reachRateText,
@@ -140,28 +116,17 @@ public class CertificationEstimationDto {
         dto.lastRequestedDate = lastRequestedDate;
         dto.estimatedDaysToReach = estimatedDaysToReach;
         dto.estimationStatus = isExpired ? "Expired" : estimationStatus;
-        dto.isAppointed = isAppointed;
-        dto.payrollRecord = payrollRecord;
         dto.isExpired = isExpired;
 
         dto.progressPercentage = progressPercentage;
         dto.remainingRanks = remainingRanks;
         dto.reachRateText = reachRateText;
 
-        if (isAppointed) {
-            dto.statusText = "Appointed";
-            dto.statusStyle = "color: green; font-weight: bold;";
-            dto.progressBarColor = "#28a745";
-        } else if (isExpired) {
-            dto.statusText = "Expired";
-            dto.statusStyle = "color: #d9534f; font-weight: bold;";
+        if (isExpired) {
             dto.progressBarColor = "#d9534f";
         } else {
-            dto.statusText = "Not Appointed";
-            dto.statusStyle = "color: black; font-weight: normal;";
             dto.progressBarColor = "#007bff";
         }
-        dto.payrollCardStyle = isAppointed ? "display: block;" : "display: none;";
 
         dto.maxReachNumberText = formatOrNa(maxReachNumber);
         dto.firstRequestedDateText = formatOrNa(firstRequestedDate);
@@ -177,28 +142,17 @@ public class CertificationEstimationDto {
         return dto;
     }
 
-    public static CertificationEstimationDto emptyEstimation(String statusMessage, boolean isAppointed, CivilListPayrollRecord payrollRecord, boolean isExpired) {
+    public static CertificationEstimationDto emptyEstimation(String statusMessage, boolean isExpired) {
         CertificationEstimationDto dto = new CertificationEstimationDto();
         dto.hasCertificate = false;
-        dto.isAppointed = isAppointed;
-        dto.payrollRecord = payrollRecord;
         dto.isExpired = isExpired;
         dto.estimationStatus = isExpired ? "Expired" : statusMessage;
 
-        if (isAppointed) {
-            dto.statusText = "Appointed";
-            dto.statusStyle = "color: green; font-weight: bold;";
-            dto.progressBarColor = "#28a745";
-        } else if (isExpired) {
-            dto.statusText = "Expired";
-            dto.statusStyle = "color: #d9534f; font-weight: bold;";
+        if (isExpired) {
             dto.progressBarColor = "#d9534f";
         } else {
-            dto.statusText = "Not Appointed";
-            dto.statusStyle = "color: black; font-weight: normal;";
             dto.progressBarColor = "#007bff";
         }
-        dto.payrollCardStyle = isAppointed ? "display: block;" : "display: none;";
         return dto;
     }
 }

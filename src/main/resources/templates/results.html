@@ -27,7 +27,7 @@
         <div class="details">
             Exam #<span th:text="${candidate.examNo}"></span>
             | List #<span th:text="${candidate.listNo}"></span>
-            | Status <span th:text="${candidate.status}"></span>
+            | Status <span th:text="${candidate.status != null ? #strings.capitalize(candidate.status) : ''}"></span>
             | Score <span th:text="${candidate.score}"></span>
         </div>
         <div>
